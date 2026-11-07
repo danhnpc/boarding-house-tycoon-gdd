@@ -127,3 +127,20 @@ test('7. reload persists rooms, levels, missions and saves', async ({ page }) =>
   expect(room2?.tenantId).not.toBeNull();
   expect(typeof state.time?.lastCheckpointAt).toBe('number');
 });
+
+test('8. settings panel opens, shows storage status; reset wipes the save', async ({ page }) => {
+  await page.getByRole('button', { name: /Nhận vào Phòng/ }).first().click();
+  await expect(page.getByText('Nhiệm vụ 2')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Cài đặt' }).click();
+  await expect(page.getByText('Bộ nhớ lớn:')).toBeVisible();
+
+  // Reset via the settings screen: confirm browser dialog, app reloads empty.
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'Xoá save game' }).click();
+  await expect(page.getByText('Nhiệm vụ 1')).toBeVisible({ timeout: 15_000 });
+  const state = (await productionState(page)) as {
+    missions?: { completedMissionNumbers: number[] };
+  };
+  expect(state.missions?.completedMissionNumbers).toEqual([]);
+});
