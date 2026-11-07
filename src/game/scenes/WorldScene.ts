@@ -34,9 +34,8 @@ const v = (x: number, y: number): Phaser.Math.Vector2 => new Phaser.Math.Vector2
 
 export class WorldScene extends Phaser.Scene {
   private roomGraphics = new Map<string, Phaser.GameObjects.Graphics>();
-  private roomZones = new Map<string, Phaser.GameObjects.Zone>();
   private markers = new Map<string, Phaser.GameObjects.Arc>();
-  /** Selection highlight is visual-only state owned by the scene (skill rule 4). */
+  private roomCenters = new Map<string, { x: number; y: number }>();  /** Selection highlight is visual-only state owned by the scene (skill rule 4). */
   private selectedRoomId: string | null = null;
   private lastWorldKey = '';
   private contentCenter = v(0, 0);
@@ -49,6 +48,25 @@ export class WorldScene extends Phaser.Scene {
     // Initial framing before any snapshot arrives; the world redraws on the
     // first forwarded store snapshot (within one tick).
     this.centerCameraOnContent();
+    // Scene-level hit testing in world space (skill rules 3 and 6): one
+    // pointer handler computes the diamond of each room in its own world
+    // coordinates, avoiding per-object hitArea space differences between
+    // Phaser versions and rect overlaps of a diamond grid.
+    this.input?.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      if (this.roomCenters.size === 0 || !this.isLive()) {
+        return;
+      }
+      const worldX = pointer.worldX;
+      const worldY = pointer.worldY;
+      for (const [roomId, center] of this.roomCenters) {
+        const dx = Math.abs(worldX - center.x) / (TILE_W * 0.65);
+        const dy = Math.abs(worldY - center.y) / (TILE_H * 0.65);
+        if (dx + dy <= 1) {
+          gameBridge.emitGameEvent({ type: 'ROOM_SELECTED', roomId });
+          break;
+        }
+      }
+    });
   }
 
   /** Discrete state change pushed by the React host (never per-frame data). */
@@ -90,11 +108,7 @@ export class WorldScene extends Phaser.Scene {
     for (const marker of this.markers.values()) {
       marker.destroy();
     }
-    for (const zone of this.roomZones.values()) {
-      zone.destroy();
-    }
     this.roomGraphics.clear();
-    this.roomZones.clear();
     this.markers.clear();
 
     const archetypes = new Map(
@@ -104,6 +118,7 @@ export class WorldScene extends Phaser.Scene {
     for (const room of state.building.rooms) {
       this.buildRoom(room, room.tenantId !== null ? archetypes.get(room.tenantId) : undefined);
     }
+    this.syncRoomCenters(state);
 
     const projected = state.building.rooms.map((room) => {
       const number = roomNumber(room.roomId) ?? 1;
@@ -114,6 +129,15 @@ export class WorldScene extends Phaser.Scene {
       projected.reduce((sum, p) => sum + p.y, 0) / Math.max(projected.length, 1),
     );
     this.centerCameraOnContent();
+  }
+
+  /** Diamond-per-room snapshot used by the scene-level hit test. */
+  private syncRoomCenters(state: GameState): void {
+    this.roomCenters.clear();
+    for (const room of state.building.rooms) {
+      const center = project(ROOM_GRID[roomNumber(room.roomId) ?? 1]);
+      this.roomCenters.set(room.roomId, center);
+    }
   }
 
   private buildRoom(room: RoomState, archetype: TenantArchetype | undefined): void {
@@ -145,6 +169,8 @@ export class WorldScene extends Phaser.Scene {
     g.lineStyle(2, FLOOR_STROKE, 1);
     g.strokePoints([floorTop, floorRight, floorBottom, floorLeft], true);
 
+    // Playable floor with a clear footprint; close with the tenant marker for
+    // occupied rooms (asset-manifest keys room-level-0X-* / tenant-*-marker).
     this.roomGraphics.set(room.roomId, g);
 
     // Occupied rooms show a tenant marker dot on the floor (placeholder for
@@ -159,16 +185,6 @@ export class WorldScene extends Phaser.Scene {
       marker.setDepth(depthFor(grid) + 0.5);
       this.markers.set(room.roomId, marker);
     }
-
-    // Touch-friendly hit diamond larger than the visible footprint
-    // (skill rules 3 and 6).
-    const zone = this.add.zone(centerVec.x, centerVec.y, TILE_W + 24, TILE_H + 24);
-    zone.setInteractive({ useHandCursor: true });
-    zone.setDepth(1000);
-    zone.on('pointerdown', () => {
-      gameBridge.emitGameEvent({ type: 'ROOM_SELECTED', roomId: room.roomId });
-    });
-    this.roomZones.set(room.roomId, zone);
   }
 
   private redrawSelection(): void {
