@@ -701,7 +701,7 @@ Open items for Phase 3 (not yet decided or produced):
 - **Copy for the 7 missions** (player-facing text; objectives in GDD 7.1), and the **congratulation screen and run summary** after MVP completion (GDD 7.2, C5 default).
 - **Level 3 room visuals** and the **six-room layout** (GDD 4.2, 10; open-questions E2). Art lead designs; product owner approves.
 - **Tenant expressions:** 3 per archetype (idle, happy, annoyed; GDD 10), 9 variants total. Assets not produced; placeholders are acceptable.
-- **Event illustrations.** No spec exists. Placeholder icon and text are acceptable for the first pass (Visual Direction section 7). Decide whether event art is required before Phase 4.
+- **Event illustrations.** No spec exists. Placeholder icon and text are acceptable for the first pass (Visual Direction section 8). Decide whether event art is required before Phase 4.
 - **Sound effects.** Roughly 8 SFX plus a mute toggle (GDD 9.3, 9.4). No audio assets exist. Decide whether SFX land in Phase 3 or Phase 4.
 - **Save migration fixtures** for every schema version introduced in Phase 2 and Phase 3 (Phase 1 save/load rules).
 

@@ -122,7 +122,7 @@ These are visual communication cues, not rigid assumptions about real people. Av
 
 ### 7.2 Expression set
 
-For the MVP, prioritize a compact reusable expression set:
+For the MVP, the runtime requirement follows GDD section 10: three expression variants per archetype (idle, happy, annoyed). The five-expression list below is the reusable superset for future use; produce the GDD set first and add the extra two expressions only when a design need appears.
 
 - Neutral / idle.
 - Happy / accepted.
