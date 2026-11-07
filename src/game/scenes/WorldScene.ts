@@ -1,149 +1,190 @@
-// Phase 0 spike world scene.
-// Placeholder isometric rooms drawn with vector shapes (approved placeholder
-// policy, GDD section 10). Proves: touch/mouse selection, ground-anchor depth,
-// RESIZE-driven portrait/landscape scaling, and the typed bridge contract.
+// Game world scene (Phase 2). Renders the boarding house from canonical
+// GameState snapshots pushed in by React (single direction, react-phaser-bridge
+// rule 8: both layers read the same state, only React owns subscriptions for
+// cleanup guarantees). The scene never writes rules; placeholder art policy:
+// code-drawn shapes with stable asset keys from src/config/assets.ts.
 
 import Phaser from 'phaser';
-import { gameBridge, type UiToGameCommand } from '../bridge/gameBridge';
-
-// Isometric transform (tech doc 7.2): screen = diamond projection of grid pos.
-const TILE_W = 96;
-const TILE_H = 48;
-const WALL_H = 44;
-
-interface RoomSpec {
-  id: string;
-  gridX: number;
-  gridY: number;
-}
-
-const ROOMS: RoomSpec[] = [
-  { id: 'room-1', gridX: 0, gridY: 0 },
-  { id: 'room-2', gridX: 1, gridY: 0 },
-  { id: 'room-3', gridX: 0, gridY: 1 },
-];
+import { gameBridge } from '../bridge/gameBridge';
+import { ROOM_GRID, TILE_H, TILE_W, WALL_H, depthFor, project, roomNumber } from '../world/layout';
+import type { GameState, RoomLevel, RoomState, TenantArchetype } from '../../domain/types';
 
 const FLOOR_FILL = 0x7ec850;
+const ROOF_FILL = 0xd96c4f;
+const ROOF_FILL_L2 = 0x4f96d9;
+const ROOF_FILL_L3 = 0x9d6bd9;
 const WALL_LEFT_FILL = 0x8b6b4a;
 const WALL_RIGHT_FILL = 0xa58359;
-const ROOF_FILL = 0xd96c4f;
 const FLOOR_STROKE = 0x3d6e26;
 const HIGHLIGHT = 0xffe28a;
 
-type Vec2 = Phaser.Math.Vector2;
+const LEVEL_ROOF: Record<RoomLevel, number> = {
+  1: ROOF_FILL,
+  2: ROOF_FILL_L2,
+  3: ROOF_FILL_L3,
+};
 
-const v = (x: number, y: number): Vec2 => new Phaser.Math.Vector2(x, y);
+const MARKER_COLORS: Record<TenantArchetype, number> = {
+  student: 0xf2c94c,
+  office_worker: 0x2d9cdb,
+  messy_tenant: 0x9b643d,
+};
+
+const v = (x: number, y: number): Phaser.Math.Vector2 => new Phaser.Math.Vector2(x, y);
 
 export class WorldScene extends Phaser.Scene {
   private roomGraphics = new Map<string, Phaser.GameObjects.Graphics>();
   private roomZones = new Map<string, Phaser.GameObjects.Zone>();
-  private unsubscribeCommands: (() => void) | null = null;
-  private contentCenter: Vec2 = v(0, 0);
-
-  private readonly handleResize = () => {
-    this.centerCameraOnContent();
-  };
-
-  private readonly handleClearSelection = (command: UiToGameCommand): void => {
-    if (command.type === 'CLEAR_SELECTION') {
-      this.setSelectedRoom(null);
-    }
-  };
+  private markers = new Map<string, Phaser.GameObjects.Arc>();
+  /** Selection highlight is visual-only state owned by the scene (skill rule 4). */
+  private selectedRoomId: string | null = null;
+  private lastWorldKey = '';
+  private contentCenter = v(0, 0);
 
   constructor() {
     super('WorldScene');
   }
 
   create(): void {
-    for (const room of ROOMS) {
-      this.buildRoom(room);
-    }
-    this.computeContentCenter();
+    // Initial framing before any snapshot arrives; the world redraws on the
+    // first forwarded store snapshot (within one tick).
     this.centerCameraOnContent();
-
-    this.scale.on('resize', this.handleResize);
-    this.unsubscribeCommands = gameBridge.onGameCommand(this.handleClearSelection);
-
-    this.events.once('shutdown', () => {
-      this.scale.off('resize', this.handleResize);
-      this.unsubscribeCommands?.();
-      this.unsubscribeCommands = null;
-      this.roomGraphics.clear();
-      this.roomZones.clear();
-    });
-
-    gameBridge.emitGameEvent({ type: 'WORLD_READY' });
   }
 
-  private buildRoom(room: RoomSpec): void {
-    const center = this.roomCenter(room);
+  /** Discrete state change pushed by the React host (never per-frame data). */
+  updateFromState(state: GameState): void {
+    if (!this.isLive()) {
+      return;
+    }
+    const worldKey = state.building.rooms
+      .map((r) => `${r.roomId}:${r.level}:${r.tenantId ?? 'v'}`)
+      .join('|');
+    if (worldKey !== this.lastWorldKey) {
+      this.rebuildRooms(state);
+      this.lastWorldKey = worldKey;
+    }
+    this.redrawSelection();
+  }
 
-    // Floor diamond vertices (ground plane).
-    const top = v(center.x, center.y - TILE_H / 2);
-    const right = v(center.x + TILE_W / 2, center.y);
-    const bottom = v(center.x, center.y + TILE_H / 2);
-    const left = v(center.x - TILE_W / 2, center.y);
-    const raised = (p: Vec2): Vec2 => v(p.x, p.y - WALL_H);
+  /** Selection changed on the UI side; visual only. */
+  updateSelection(roomId: string | null): void {
+    if (!this.isLive()) {
+      return;
+    }
+    this.selectedRoomId = roomId;
+    this.redrawSelection();
+  }
+
+  /** Destroyed scenes keep forwarded closures harmless: guard every write. */
+  private isLive(): boolean {
+    return this.scene !== undefined && this.sys !== undefined && this.add !== null;
+  }
+
+  private rebuildRooms(state: GameState): void {
+    if (!this.isLive()) {
+      return;
+    }
+    for (const graphics of this.roomGraphics.values()) {
+      graphics.destroy();
+    }
+    for (const marker of this.markers.values()) {
+      marker.destroy();
+    }
+    for (const zone of this.roomZones.values()) {
+      zone.destroy();
+    }
+    this.roomGraphics.clear();
+    this.roomZones.clear();
+    this.markers.clear();
+
+    const archetypes = new Map(
+      state.tenants.map((tenant) => [tenant.tenantId, tenant.archetype] as const),
+    );
+
+    for (const room of state.building.rooms) {
+      this.buildRoom(room, room.tenantId !== null ? archetypes.get(room.tenantId) : undefined);
+    }
+
+    const projected = state.building.rooms.map((room) => {
+      const number = roomNumber(room.roomId) ?? 1;
+      return project(ROOM_GRID[number]);
+    });
+    this.contentCenter = v(
+      projected.reduce((sum, p) => sum + p.x, 0) / Math.max(projected.length, 1),
+      projected.reduce((sum, p) => sum + p.y, 0) / Math.max(projected.length, 1),
+    );
+    this.centerCameraOnContent();
+  }
+
+  private buildRoom(room: RoomState, archetype: TenantArchetype | undefined): void {
+    const number = roomNumber(room.roomId) ?? 1;
+    const grid = ROOM_GRID[number];
+    const center = project(grid);
+    const centerVec = v(center.x, center.y);
+
+    const floorTop = v(centerVec.x, centerVec.y - TILE_H / 2);
+    const floorRight = v(centerVec.x + TILE_W / 2, centerVec.y);
+    const floorBottom = v(centerVec.x, centerVec.y + TILE_H / 2);
+    const floorLeft = v(centerVec.x - TILE_W / 2, centerVec.y);
+    const wallsUp = (p: Phaser.Math.Vector2): Phaser.Math.Vector2 => v(p.x, p.y - WALL_H);
 
     const g = this.add.graphics();
-    g.setDepth(room.gridX + room.gridY); // ground-anchor depth (visual doc 3.2)
+    g.setDepth(depthFor(grid)); // ground-contact depth (skill rule 2)
 
-    // Roof block.
-    g.fillStyle(ROOF_FILL, 1);
-    g.fillPoints([raised(top), raised(right), raised(bottom), raised(left)], true);
-    // Left wall, then right wall.
+    g.fillStyle(LEVEL_ROOF[room.level], 1);
+    g.fillPoints(
+      [wallsUp(floorTop), wallsUp(floorRight), wallsUp(floorBottom), wallsUp(floorLeft)],
+      true,
+    );
     g.fillStyle(WALL_LEFT_FILL, 1);
-    g.fillPoints([left, bottom, raised(bottom), raised(left)], true);
+    g.fillPoints([floorLeft, floorBottom, wallsUp(floorBottom), wallsUp(floorLeft)], true);
     g.fillStyle(WALL_RIGHT_FILL, 1);
-    g.fillPoints([right, bottom, raised(bottom), raised(right)], true);
-    // Playable floor with a clear footprint.
+    g.fillPoints([floorRight, floorBottom, wallsUp(floorBottom), wallsUp(floorRight)], true);
     g.fillStyle(FLOOR_FILL, 1);
-    g.fillPoints([top, right, bottom, left], true);
+    g.fillPoints([floorTop, floorRight, floorBottom, floorLeft], true);
     g.lineStyle(2, FLOOR_STROKE, 1);
-    g.strokePoints([top, right, bottom, left], true);
+    g.strokePoints([floorTop, floorRight, floorBottom, floorLeft], true);
 
-    this.roomGraphics.set(room.id, g);
+    this.roomGraphics.set(room.roomId, g);
 
-    // Touch-friendly hit area larger than the visible diamond (visual doc 3.1).
-    const zone = this.add.zone(center.x, center.y, TILE_W + 24, TILE_H + 24);
+    // Occupied rooms show a tenant marker dot on the floor (placeholder for
+    // the tenant sprite keys in the asset manifest).
+    if (room.tenantId !== null && archetype !== undefined) {
+      const marker = this.add.circle(
+        centerVec.x,
+        centerVec.y - TILE_H / 6,
+        6,
+        MARKER_COLORS[archetype],
+      );
+      marker.setDepth(depthFor(grid) + 0.5);
+      this.markers.set(room.roomId, marker);
+    }
+
+    // Touch-friendly hit diamond larger than the visible footprint
+    // (skill rules 3 and 6).
+    const zone = this.add.zone(centerVec.x, centerVec.y, TILE_W + 24, TILE_H + 24);
     zone.setInteractive({ useHandCursor: true });
     zone.setDepth(1000);
     zone.on('pointerdown', () => {
-      this.setSelectedRoom(room.id);
+      gameBridge.emitGameEvent({ type: 'ROOM_SELECTED', roomId: room.roomId });
     });
-    this.roomZones.set(room.id, zone);
+    this.roomZones.set(room.roomId, zone);
   }
 
-  private setSelectedRoom(roomId: string | null): void {
-    for (const [id, g] of this.roomGraphics) {
-      const selected = id === roomId;
-      g.lineStyle(selected ? 6 : 2, selected ? HIGHLIGHT : FLOOR_STROKE, 1);
+  private redrawSelection(): void {
+    if (!this.isLive()) {
+      return;
     }
-    if (roomId === null) {
-      gameBridge.emitGameEvent({ type: 'SELECTION_CLEARED' });
-    } else {
-      gameBridge.emitGameEvent({ type: 'ROOM_SELECTED', roomId });
+    for (const [roomId, g] of this.roomGraphics) {
+      const isSelected = roomId === this.selectedRoomId;
+      g.lineStyle(isSelected ? 6 : 2, isSelected ? HIGHLIGHT : FLOOR_STROKE, 1);
     }
-  }
-
-  private roomCenter(room: RoomSpec): Vec2 {
-    return v(
-      (room.gridX - room.gridY) * (TILE_W / 2),
-      (room.gridX + room.gridY) * (TILE_H / 2),
-    );
-  }
-
-  private computeContentCenter(): void {
-    const centers = ROOMS.map((room) => this.roomCenter(room));
-    this.contentCenter = v(
-      centers.reduce((sum, p) => sum + p.x, 0) / centers.length,
-      centers.reduce((sum, p) => sum + p.y, 0) / centers.length,
-    );
   }
 
   private centerCameraOnContent(): void {
-    // Keep the building centered in both portrait and landscape; the tiles
-    // are small enough that either orientation fits without camera bounds.
+    if (!this.isLive()) {
+      return;
+    }
     this.cameras.main.centerOn(this.contentCenter.x, this.contentCenter.y - TILE_H);
   }
 }

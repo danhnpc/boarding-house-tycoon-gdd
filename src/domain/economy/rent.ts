@@ -5,10 +5,10 @@
 import {
   MAX_COMBINED_INCOME_REDUCTION,
   NET_RATE,
-  REAL_SECONDS_PER_GAME_DAY,
   RENT_PER_GAME_DAY_MINOR,
 } from '../config/balance';
 import { ok, type CommandResult } from '../shared/result';
+import { integrateNetRent } from './offline';
 import type { GameState } from '../types';
 
 /** Gross rent per Game Day from occupied rooms, in minor units. */
@@ -42,22 +42,20 @@ export function netRentPerGameDayMinor(state: GameState, now: number): number {
 /**
  * Accrue income over the elapsed real time since the last checkpoint and move
  * the checkpoint to `now` in the same state update (GDD 8.1: an interval is
- * never credited twice). Only occupied rooms earn; the caller validates
- * elapsed >= 0.
+ * never credited twice). Uses the same segment integration as the offline
+ * resume (GDD 8.2 / tech doc 9.2), so online and offline cannot drift.
  */
-export function accrueIncome(
-  state: GameState,
-  elapsedSeconds: number,
-  now: number,
-): CommandResult<GameState> {
-  if (elapsedSeconds < 0) {
-    return { ok: false, reason: 'NEGATIVE_ELAPSED_TIME' };
+export function accrueIncome(state: GameState, now: number): CommandResult<GameState> {
+  if (now < state.time.lastCheckpointAt) {
+    return { ok: false, reason: 'CLOCK_MOVED_BACKWARDS' };
   }
-  const netPerSecondMinor = netRentPerGameDayMinor(state, now) / REAL_SECONDS_PER_GAME_DAY;
-  const totalMinorFloat =
-    netPerSecondMinor * elapsedSeconds + state.time.incomeRemainderMinorUnits;
-  const creditedMinorUnits = Math.floor(totalMinorFloat);
-  const remainder = totalMinorFloat - creditedMinorUnits;
+  const { creditedMinorUnits, remainderMinorUnits, grossFloatMinorUnits } =
+    integrateNetRent(
+      state,
+      state.time.lastCheckpointAt,
+      now,
+      state.time.incomeRemainderMinorUnits,
+    );
 
   const next: GameState = {
     ...state,
@@ -65,11 +63,11 @@ export function accrueIncome(
       ...state.player,
       cashMinorUnits: state.player.cashMinorUnits + creditedMinorUnits,
       lifetimeGrossIncomeMinorUnits:
-        state.player.lifetimeGrossIncomeMinorUnits + grossRentPerGameDayMinor(state),
+        state.player.lifetimeGrossIncomeMinorUnits + Math.floor(grossFloatMinorUnits),
     },
     time: {
       lastCheckpointAt: now,
-      incomeRemainderMinorUnits: remainder,
+      incomeRemainderMinorUnits: remainderMinorUnits,
     },
   };
   return ok(next);
