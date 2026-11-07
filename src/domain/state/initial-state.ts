@@ -58,6 +58,7 @@ export function createInitialGameState(time: TimeProvider): GameState {
     time: {
       lastCheckpointAt: time.now(),
       incomeRemainderMinorUnits: 0,
+      grossRemainderMinorUnits: 0,
       onlineMs: 0,
     },
   };

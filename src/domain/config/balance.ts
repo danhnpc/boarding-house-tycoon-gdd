@@ -93,4 +93,4 @@ export const EVENT_COST_MINOR: Record<string, number> = {
 };
 
 /** Save schema version (ADR 0002). Bump + sequential migration on change. */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;

@@ -8,6 +8,7 @@ import { IndexedDbSaveAdapter } from '../../src/persistence/indexeddb-adapter';
 import { SaveGameService } from '../../src/persistence/save-game-service';
 import { type SaveRecord } from '../../src/persistence/schema';
 import { createInitialGameState } from '../../src/domain/state/initial-state';
+import { SCHEMA_VERSION } from '../../src/domain/config/balance';
 import { FakeClock } from './helpers';
 import type { GameState } from '../../src/domain/types';
 
@@ -82,6 +83,66 @@ describe('failure handling', () => {
     });
     const outcome = await service.loadState();
     expect(outcome).toMatchObject({ kind: 'corrupt' });
+  });
+});
+
+/** Shape of a v1 save: no event system, no online clock, no gross remainder. */
+function toV1(current: GameState): Record<string, unknown> {
+  const v1: Record<string, unknown> = {
+    ...current,
+    schemaVersion: 1,
+    time: {
+      lastCheckpointAt: current.time.lastCheckpointAt,
+      incomeRemainderMinorUnits: current.time.incomeRemainderMinorUnits,
+    },
+  };
+  delete v1.events;
+  return v1;
+}
+
+/** Shape of a v2 save: events + online clock, no gross remainder. */
+function toV2(current: GameState): Record<string, unknown> {
+  const v2: Record<string, unknown> = {
+    ...current,
+    schemaVersion: 2,
+    time: {
+      lastCheckpointAt: current.time.lastCheckpointAt,
+      incomeRemainderMinorUnits: current.time.incomeRemainderMinorUnits,
+      onlineMs: current.time.onlineMs,
+    },
+  };
+  return v2;
+}
+
+describe('migration chain fixtures', () => {
+  it('a v1 save migrates through v2 to the current schema', async () => {
+    await adapter.write({ schemaVersion: 1, savedAt: 5, state: toV1(state) });
+    const outcome = await service.loadState();
+    if (outcome.kind !== 'ok') throw new Error(`expected ok, got ${outcome.kind}`);
+    expect(outcome.state.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(outcome.state.events.lastCheckOnlineMs).toBe(0);
+    expect(outcome.state.time.onlineMs).toBe(0);
+    expect(outcome.state.time.grossRemainderMinorUnits).toBe(0);
+  });
+
+  it('a v2 save migrates to the current schema with a zero gross remainder', async () => {
+    await adapter.write({ schemaVersion: 2, savedAt: 5, state: toV2(state) });
+    const outcome = await service.loadState();
+    if (outcome.kind !== 'ok') throw new Error(`expected ok, got ${outcome.kind}`);
+    expect(outcome.state.schemaVersion).toBe(SCHEMA_VERSION);
+    expect(outcome.state.time.grossRemainderMinorUnits).toBe(0);
+    expect(outcome.state.time.onlineMs).toBe(0);
+  });
+
+  it('a current save keeps its gross remainder through a round trip', async () => {
+    const carried: GameState = {
+      ...state,
+      time: { ...state.time, grossRemainderMinorUnits: 0.625 },
+    };
+    await service.saveState(carried);
+    const outcome = await service.loadState();
+    if (outcome.kind !== 'ok') throw new Error(`expected ok, got ${outcome.kind}`);
+    expect(outcome.state.time.grossRemainderMinorUnits).toBe(0.625);
   });
 });
 

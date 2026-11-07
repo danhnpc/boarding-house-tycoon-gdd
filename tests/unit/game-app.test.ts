@@ -119,6 +119,7 @@ describe('GameApp command pipeline', () => {
     // Mission 1 credited on the same command call.
     expect(first.getState().missions.completedMissionNumbers).toEqual([1]);
     expect(first.getState().player.cashMinorUnits).toBe(100_000 + 10_000);
+    await first.saveNow(); // saves are queued; wait for the write before reloading
     first.stopTimers();
 
     // Reload from the persisted record.

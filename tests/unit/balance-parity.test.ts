@@ -70,7 +70,7 @@ describe('GDD parity', () => {
   });
 
   it('save schema version matches config', () => {
-    expect(SCHEMA_VERSION).toBe(2);
-    expect(SAVE_VERSION).toBe(2);
+    expect(SCHEMA_VERSION).toBe(3);
+    expect(SAVE_VERSION).toBe(3);
   });
 });

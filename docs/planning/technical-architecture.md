@@ -247,7 +247,9 @@ interface GameState {
   progression: ProgressionState;
   time: {
     lastCheckpointAt: number;
-    incomeRemainderMinorUnits: number;
+    incomeRemainderMinorUnits: number;   // net-income fraction carried between accruals
+    grossRemainderMinorUnits: number;    // gross fraction carried, for lifetime gross
+    onlineMs: number;                    // accumulated online time (cooldowns, event checks)
   };
 }
 ```
@@ -512,6 +514,23 @@ Local save is sufficient because the MVP is single-player and does not require a
 - Migrations must be deterministic and unit tested with representative old save fixtures.
 - Do not rely on renaming a TypeScript interface as a migration.
 - Keep a small number of previous schema migrations; document when old save versions are no longer supported.
+- Migrations are sequential (`vN -> vN+1`, each stamping `schemaVersion = N+1`), so any old save reaches the current shape by running the chain. A save with a higher `schemaVersion` is rejected, never migrated backwards.
+
+Schema history:
+
+| Version | Change | Migration |
+|---|---|---|
+| 1 | Initial local save | — |
+| 2 | Event system and online clock (`events`, `time.onlineMs`) | stamps `schemaVersion: 2`, adds event and online-clock defaults |
+| 3 | Gross remainder carried between accruals (`time.grossRemainderMinorUnits`) | stamps `schemaVersion: 3`, sets the remainder to `0` |
+
+### 10.4 Time integration rules
+
+- Foreground ticks run once per second. A gap of 30 seconds or more, or the first visible tick after the page was hidden, is treated as an offline resume: the elapsed time is integrated with the offline cap (8 hours) and the online timers do not advance.
+- Online timers (`onlineMs`, cooldowns, the 5-minute candidate and event check) advance only on the online path.
+- Income is credited through one shared helper. Net and gross fractions are carried in state, so no income is lost to rounding.
+- Net rent uses the reduction in effect at each segment boundary, capped at 25%. Modifiers that expire mid-interval split the interval at their expiry.
+- Saves are written in the order they were requested, so a later save can never be overwritten by an earlier one.
 
 ### 10.4 Future backend seam
 

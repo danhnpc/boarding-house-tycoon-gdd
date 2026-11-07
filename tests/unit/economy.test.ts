@@ -5,7 +5,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   accrueIncome,
-  activeIncomeReduction,
   grossRentPerGameDayMinor,
   netRentPerGameDayMinor,
   toWholeCash,
@@ -13,6 +12,7 @@ import {
 import {
   OFFLINE_CAP_MS,
   integrateOffline,
+  reductionAt,
   integrateNetRent,
 } from '../../src/domain/economy/offline';
 import { initialFrozenState } from './helpers';
@@ -49,7 +49,7 @@ describe('rent calculations', () => {
       { modifierId: 'm1', rate: 0.15, expiresAt: Number.MAX_SAFE_INTEGER },
       { modifierId: 'm2', rate: 0.2, expiresAt: Number.MAX_SAFE_INTEGER },
     ]);
-    expect(activeIncomeReduction(state, 0)).toBe(0.25);
+    expect(reductionAt(state, 0)).toBe(0.25);
     expect(netRentPerGameDayMinor(state, 0)).toBe(8_100);
   });
 
@@ -57,7 +57,7 @@ describe('rent calculations', () => {
     const state = withModifiers(initialFrozenState(), [
       { modifierId: 'm1', rate: 0.15, expiresAt: 0 },
     ]);
-    expect(activeIncomeReduction(state, 1)).toBe(0);
+    expect(reductionAt(state, 1)).toBe(0);
   });
 });
 
@@ -154,6 +154,7 @@ describe('integrateOffline (GDD 8.1)', () => {
       time: {
         lastCheckpointAt: first.toMs,
         incomeRemainderMinorUnits: first.remainderMinorUnits,
+        grossRemainderMinorUnits: 0,
         onlineMs: 0,
       },
     };

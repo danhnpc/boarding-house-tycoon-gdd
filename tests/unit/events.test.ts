@@ -98,7 +98,12 @@ describe('event triggering (GDD 6.2–6.3)', () => {
           20 * 60_000,
         ],
       },
-      time: { lastCheckpointAt: 0, incomeRemainderMinorUnits: 0, onlineMs: 30 * 60_000 },
+      time: {
+        lastCheckpointAt: 0,
+        incomeRemainderMinorUnits: 0,
+        grossRemainderMinorUnits: 0,
+        onlineMs: 30 * 60_000,
+      },
     });
     expect(maybeTriggerEvent(capped, createSeededRng(3)).triggered).toBe(false);
   });

@@ -1,14 +1,14 @@
 // Economy rules (GDD 3). Pure calculations over the canonical state.
 // Money is integer minor units; fractional accrual is preserved through
-// state.time.incomeRemainderMinorUnits so income is never silently lost.
+// state.time.incomeRemainderMinorUnits and state.time.grossRemainderMinorUnits
+// so income is never silently lost.
 
 import {
-  MAX_COMBINED_INCOME_REDUCTION,
   NET_RATE,
   RENT_PER_GAME_DAY_MINOR,
 } from '../config/balance';
 import { ok, type CommandResult } from '../shared/result';
-import { integrateNetRent } from './offline';
+import { integrateNetRent, reductionAt, type IntegrationResult } from './offline';
 import type { GameState } from '../types';
 
 /** Gross rent per Game Day from occupied rooms, in minor units. */
@@ -21,22 +21,44 @@ export function grossRentPerGameDayMinor(state: GameState): number {
   }, 0);
 }
 
-export function activeIncomeReduction(state: GameState, now: number): number {
-  const total = state.modifiers.incomeReductions
-    .filter((modifier) => modifier.expiresAt > now)
-    .reduce((sum, modifier) => sum + modifier.rate, 0);
-  return Math.min(total, MAX_COMBINED_INCOME_REDUCTION);
-}
-
 /**
  * Net rent per Game Day in minor units: (gross × (1 − reduction)) × 90%.
  * Uses integer arithmetic with a conservative floor; the accrual remainder
  * below absorbs the fraction so no income is lost.
  */
 export function netRentPerGameDayMinor(state: GameState, now: number): number {
-  const reduction = activeIncomeReduction(state, now);
+  const reduction = reductionAt(state, now);
   const reducedGross = Math.floor(grossRentPerGameDayMinor(state) * (1 - reduction));
   return Math.floor(reducedGross * NET_RATE);
+}
+
+/**
+ * Apply one integrated interval to the state: credit whole cash, carry both
+ * fractional remainders (net and gross), and move the checkpoint. Shared by the
+ * online accrual, the foreground long-gap path, and the offline resume so the
+ * bookkeeping cannot drift between them.
+ */
+export function applyIntegration(
+  state: GameState,
+  result: IntegrationResult,
+  checkpointMs: number,
+): GameState {
+  const grossTotal = state.time.grossRemainderMinorUnits + result.grossFloatMinorUnits;
+  const grossWhole = Math.floor(grossTotal);
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      cashMinorUnits: state.player.cashMinorUnits + result.creditedMinorUnits,
+      lifetimeGrossIncomeMinorUnits: state.player.lifetimeGrossIncomeMinorUnits + grossWhole,
+    },
+    time: {
+      ...state.time,
+      lastCheckpointAt: checkpointMs,
+      incomeRemainderMinorUnits: result.remainderMinorUnits,
+      grossRemainderMinorUnits: grossTotal - grossWhole,
+    },
+  };
 }
 
 /**
@@ -49,29 +71,13 @@ export function accrueIncome(state: GameState, now: number): CommandResult<GameS
   if (now < state.time.lastCheckpointAt) {
     return { ok: false, reason: 'CLOCK_MOVED_BACKWARDS' };
   }
-  const { creditedMinorUnits, remainderMinorUnits, grossFloatMinorUnits } =
-    integrateNetRent(
-      state,
-      state.time.lastCheckpointAt,
-      now,
-      state.time.incomeRemainderMinorUnits,
-    );
-
-  const next: GameState = {
-    ...state,
-    player: {
-      ...state.player,
-      cashMinorUnits: state.player.cashMinorUnits + creditedMinorUnits,
-      lifetimeGrossIncomeMinorUnits:
-        state.player.lifetimeGrossIncomeMinorUnits + Math.floor(grossFloatMinorUnits),
-    },
-    time: {
-      ...state.time,
-      lastCheckpointAt: now,
-      incomeRemainderMinorUnits: remainderMinorUnits,
-    },
-  };
-  return ok(next);
+  const result = integrateNetRent(
+    state,
+    state.time.lastCheckpointAt,
+    now,
+    state.time.incomeRemainderMinorUnits,
+  );
+  return ok(applyIntegration(state, result, now));
 }
 
 /** Display convenience: whole Cash (GDD shows whole values; minor is truth). */
