@@ -290,6 +290,21 @@ export class GameApp {
     await this.saves.saveState(this.state);
   }
 
+  /**
+   * DEV/TEST only seam: route an external state patch through the standard
+   * mission evaluation + publish + save pipeline. Never used by gameplay code;
+   * powers pacing simulation and Playwright assertions.
+   */
+  applyExternalPatch(fn: (state: GameState) => GameState): void {
+    if (this.state === null) {
+      return;
+    }
+    this.state = evaluateMissions(fn(this.state));
+    this.dirty = true;
+    this.publish();
+    void this.saveNow();
+  }
+
   startTimers(): void {
     if (this.tickTimer === null) {
       this.tickTimer = setInterval(() => this.tick(), 1_000);

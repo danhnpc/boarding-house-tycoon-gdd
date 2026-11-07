@@ -9,7 +9,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "pacing": "vitest run tests/pacing"
   },
   "dependencies": {
     "phaser": "4.2.1",
