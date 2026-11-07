@@ -1,6 +1,7 @@
-// Minimal UI-side store for the Phase 0 spike. The canonical GameState
-// (tech doc 5.1) arrives in Phase 1; this store only mirrors what the
-// Phaser world reports plus local UI-only state.
+// Minimal UI-side state for the Phase 0 spike. Two slices live here:
+// - ui: what only React cares about (selection, world ready).
+// - game: a mirror of the canonical GameState snapshot (tech doc 5.1);
+//   both React and Phaser read from this single source.
 
 import { create } from 'zustand';
 import { gameBridge } from '../game/bridge/gameBridge';
@@ -23,6 +24,24 @@ export const useUiStore = create<UiState & UiActions>((set) => ({
   setWorldReady: () => set({ worldReady: true }),
   selectRoom: (roomId) => set({ selectedRoomId: roomId }),
   clearSelection: () => set({ selectedRoomId: null }),
+}));
+
+interface GameStoreSlice {
+  /** Canonical snapshot; null until the boot service hydrates it. */
+  gameState: import('../domain/types').GameState | null;
+  bootError: { kind: 'corrupt' | 'newer-version' } | null;
+}
+
+interface GameStoreActions {
+  setGameState: (state: import('../domain/types').GameState) => void;
+  setBootError: (kind: 'corrupt' | 'newer-version') => void;
+}
+
+export const useGameStore = create<GameStoreSlice & GameStoreActions>((set) => ({
+  gameState: null,
+  bootError: null,
+  setGameState: (gameState) => set({ gameState }),
+  setBootError: (kind) => set({ bootError: { kind } }),
 }));
 
 // Wire the bridge into the store once. Bridge is a singleton; the returned
