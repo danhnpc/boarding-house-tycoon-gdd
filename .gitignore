@@ -1,0 +1,17 @@
+# Dependencies and build output (game code, once it exists)
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+
+# Local environment and editor files
+.env
+.env.*
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local Claude Code settings (keep shared settings out of the repo only if they are personal)
+.claude/settings.local.json

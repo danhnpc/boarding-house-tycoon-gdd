@@ -1,0 +1,74 @@
+{
+  "locale": "vi",
+  "common": {
+    "appName": "",
+    "currencyName": "",
+    "confirm": "",
+    "cancel": "",
+    "close": "",
+    "next": "",
+    "done": "",
+    "skip": "",
+    "errorGeneric": "",
+    "errorInsufficientCash": ""
+  },
+  "hud": {
+    "cash": "",
+    "netIncomeRate": "",
+    "eventIndicator": "",
+    "navMainView": "",
+    "navRoomDetail": "",
+    "navTenants": ""
+  },
+  "roomDetail": {
+    "title": "",
+    "level": "",
+    "status": "",
+    "statusVacant": "",
+    "statusOccupied": "",
+    "tenant": "",
+    "noTenant": "",
+    "rent": "",
+    "netIncome": "",
+    "upgradeCost": "",
+    "buildCost": "",
+    "upgradeAction": "",
+    "buildAction": "",
+    "maxLevelReached": "",
+    "affordable": "",
+    "notAffordable": "",
+    "moveOutAction": "",
+    "moveOutConfirmTitle": "",
+    "moveOutConfirmBody": "",
+    "moveOutConfirmAction": ""
+  },
+  "candidates": {
+    "panelTitle": "",
+    "queueEmpty": "",
+    "queueFull": "",
+    "budget": "",
+    "compatibleRooms": "",
+    "chooseRoom": "",
+    "noEligibleRoom": "",
+    "accept": "",
+    "reject": ""
+  },
+  "missionCard": {
+    "label": "",
+    "reward": "",
+    "completed": "",
+    "rewardCredited": ""
+  },
+  "onboarding": {
+    "step1Title": "",
+    "step1Body": "",
+    "step2Title": "",
+    "step2Body": "",
+    "step3Title": "",
+    "step3Body": "",
+    "step4Title": "",
+    "step4Body": "",
+    "skipGuide": "",
+    "finishGuide": ""
+  }
+}
