@@ -5,11 +5,18 @@ import { GameApp } from '../application/game-app';
 import { IndexedDbSaveAdapter } from '../persistence/indexeddb-adapter';
 import { SaveGameService } from '../persistence/save-game-service';
 import { systemTimeProvider } from '../platform/system-time';
+import { browserOnlineProvider } from '../platform/visibility';
+import { createSeededRng } from '../domain/shared/rng';
 import { useGameStore } from '../state/game-store';
 import type { BootResult } from '../application/game-app';
 
 export const saves = new SaveGameService(new IndexedDbSaveAdapter(), () => Date.now());
-export const gameApp = new GameApp(systemTimeProvider, saves);
+export const gameApp = new GameApp(
+  systemTimeProvider,
+  saves,
+  browserOnlineProvider,
+  createSeededRng(Math.floor(Date.now() % 2_147_483_647) ^ 0x9e3779b9),
+);
 
 // The canonical state flows into the store on every discrete change; React
 // and Phaser both subscribe to the store (react-phaser-bridge rule 8).

@@ -64,5 +64,33 @@ export const EXPANSION_2 = {
 /** Building-wide income reductions add up, capped at 25% (GDD 8.2). */
 export const MAX_COMBINED_INCOME_REDUCTION = 0.25;
 
+/** Event system timing (GDD 6.2), in online ms. */
+export const EVENT_CHECK_INTERVAL_ONLINE_MS = 5 * 60_000;
+export const EVENT_BASE_CHANCE = 0.25;
+export const EVENT_GLOBAL_COOLDOWN_ONLINE_MS = 10 * 60_000;
+export const EVENT_PER_EVENT_COOLDOWN_ONLINE_MS = 30 * 60_000;
+export const EVENT_ROLLING_WINDOW_ONLINE_MS = 60 * 60_000;
+export const EVENT_MAX_PER_ROLLING_WINDOW = 3;
+
+/** Candidate generation cadence and queue cap (GDD 5.3). */
+export const CANDIDATE_CHECK_INTERVAL_ONLINE_MS = 5 * 60_000;
+export const CANDIDATE_QUEUE_LIMIT = 3;
+export const CANDIDATE_WEIGHTS: Record<string, number> = {
+  student: 0.5,
+  office_worker: 0.3,
+  messy_tenant: 0.2,
+};
+
+/** Outage/water-tap delay modifiers last 1 Game Day (GDD 6.4). */
+export const ONE_GAME_DAY_MS = REAL_SECONDS_PER_GAME_DAY * 1_000;
+
+/** Selection costs of the five MVP events (GDD 6.4), minor units. */
+export const EVENT_COST_MINOR: Record<string, number> = {
+  'utility-outage.pay': 12_000, // 120 Cash
+  'hallway-clutter.hire': 10_000, // 100 Cash
+  'water-tap.repair': 15_000, // 150 Cash
+  'noise-complaint.mediator': 8_000, // 80 Cash
+};
+
 /** Save schema version (ADR 0002). Bump + sequential migration on change. */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;

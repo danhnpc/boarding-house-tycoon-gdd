@@ -62,6 +62,27 @@ export interface ModifiersState {
 
 export interface EventState {
   activeEventId: string | null;
+  eventPayload: ActiveEventPayload | null;
+  globalCooldownRemainingOnlineMs: number;
+  perEventCooldownOnlineMs: Record<string, number>;
+  /** Online-time stamps of resolved events inside the rolling 60-minute-online cap */
+  recentEventOnlineTimes: number[];
+  /** Suppress noise events per tenant (online-time remaining, GDD 6.4). */
+  noiseTargetCooldownOnlineMsRecord: Record<
+    TenantId,
+    number
+  >;
+  /** Suppress specific event types for remaining online ms. */
+  suppressedOnlineMs: Record<string, number>;
+  /** Online-time of the last 5-minute candidate/event check. */
+  lastCheckOnlineMs: number;
+}
+
+/** Target-and-payload resolved at event creation; plain data only. */
+export interface ActiveEventPayload {
+  targetTenantId?: TenantId;
+  /** Absolute wall-clock expiry for any income modifier created on resolve. */
+  modifierExpiresAt?: number;
 }
 
 export interface TimeState {
@@ -69,6 +90,8 @@ export interface TimeState {
   lastCheckpointAt: number;
   /** Fractional minor units carried between accrual ticks. */
   incomeRemainderMinorUnits: number;
+  /** Accumulated foreground ("online") time in ms (GDD 8.1). */
+  onlineMs: number;
 }
 
 export interface GameState {
