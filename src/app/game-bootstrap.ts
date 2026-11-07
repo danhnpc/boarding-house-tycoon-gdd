@@ -54,6 +54,32 @@ if (import.meta.env.DEV) {
         );
         return rolled.triggered ? rolled.state : state;
       }),
+    forceCompletion: () =>
+      gameApp.applyExternalPatch((state) => ({
+        ...state,
+        missions: {
+          completedMissionNumbers: [1, 2, 3, 4, 5, 6, 7],
+          nextMissionNumber: 8,
+        },
+        progression: { roomCapacity: 6, unlockedMaxLevel: 3 },
+        building: {
+          roomCapacity: 6,
+          rooms: [
+            { roomId: 'room-1', level: 3, tenantId: 'tenant-1' },
+            { roomId: 'room-2', level: 3, tenantId: 'tenant-candidate-1' },
+            { roomId: 'room-3', level: 3, tenantId: 'tenant-es-101' },
+            { roomId: 'room-4', level: 3, tenantId: 'tenant-es-102' },
+            { roomId: 'room-5', level: 3, tenantId: null },
+            { roomId: 'room-6', level: 3, tenantId: null },
+          ],
+        },
+        tenants: [
+          { tenantId: 'tenant-1', archetype: 'office_worker' },
+          { tenantId: 'tenant-candidate-1', archetype: 'student' },
+          { tenantId: 'tenant-es-101', archetype: 'student' },
+          { tenantId: 'tenant-es-102', archetype: 'student' },
+        ],
+      })),
     zones: () => zonesProbe?.() ?? 'not-wired',
     setZoneProbe: (probe: () => string) => {
       zonesProbe = probe;

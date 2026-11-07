@@ -123,6 +123,73 @@ body,
   z-index: 60;
 }
 
+.onboarding {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  margin: 0.5rem;
+  margin-left: calc(0.5rem + env(safe-area-inset-left));
+  margin-right: calc(0.5rem + env(safe-area-inset-right));
+  margin-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+  padding: 0.9rem 1rem;
+  background: #fff8e1;
+  border: 2px solid #f0c948;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  z-index: 40;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.onboarding strong {
+  font-size: 0.95rem;
+}
+
+.onboarding-step {
+  font-size: 0.75rem;
+  color: #8b7500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.onboarding p {
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.onboarding button {
+  justify-self: end;
+  font-size: 0.8rem;
+  padding: 0.4rem 0.8rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #8b7500;
+  cursor: pointer;
+}
+
+.congrats ul {
+  margin: 0 0 0.8rem;
+  padding-left: 1.1rem;
+  font-size: 0.88rem;
+}
+
+.congrats li {
+  margin-bottom: 0.25rem;
+}
+
+.settings-gear {
+  position: absolute;
+  top: calc(0.4rem + env(safe-area-inset-top));
+  right: 0.5rem;
+  font-size: 1.4rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  z-index: 60;
+}
+
 .settings-panel {
   position: absolute;
   top: 3rem;
