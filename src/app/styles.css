@@ -1,0 +1,110 @@
+:root {
+  color-scheme: light;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+
+.app {
+  position: relative;
+  height: 100dvh;
+  overflow: hidden;
+  background: #9ed0b1;
+}
+
+.game-host {
+  position: absolute;
+  inset: 0;
+}
+
+.game-host canvas {
+  display: block;
+}
+
+/* HUD overlays the canvas; must not swallow touch input on empty space. */
+.hud-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: calc(0.5rem + env(safe-area-inset-top)) calc(0.75rem + env(safe-area-inset-right))
+    0.5rem calc(0.75rem + env(safe-area-inset-left));
+  background: rgba(255, 255, 255, 0.85);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.15);
+  font-weight: 600;
+}
+
+.hud-status {
+  font-weight: 400;
+  font-size: 0.85rem;
+  color: #2e5d34;
+}
+
+.room-panel {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  margin: 0.5rem;
+  margin-left: calc(0.5rem + env(safe-area-inset-left));
+  margin-right: calc(0.5rem + env(safe-area-inset-right));
+  margin-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+  background: #fffdf6;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  padding: 1rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+.room-panel h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+}
+
+.room-panel dl {
+  margin: 0 0 0.75rem;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 1rem;
+  font-size: 0.9rem;
+}
+
+.room-panel dt {
+  font-weight: 600;
+}
+
+.room-panel dd {
+  margin: 0;
+}
+
+.room-panel button {
+  font-size: 1rem;
+  padding: 0.6rem 1.2rem; /* ≥44 CSS px tap target incl. line height (tech doc 13) */
+  border: none;
+  border-radius: 8px;
+  background: #2e5d34;
+  color: #fff;
+  cursor: pointer;
+}
+
+@media (min-width: 900px) {
+  .room-panel {
+    left: auto;
+    right: 1rem;
+    bottom: 1rem;
+    width: 320px;
+  }
+}
