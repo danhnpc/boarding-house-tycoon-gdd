@@ -5,6 +5,7 @@ import {
   saveSoundPreference,
   useSettingsStore,
 } from '../settings-state';
+import { resetOnboardingState } from '../onboarding-state';
 import { t } from '../i18n';
 
 const adapter = new IndexedDbSaveAdapter();
@@ -93,6 +94,7 @@ export function SettingsPanel() {
             return;
           }
           void adapter.clear().then(() => {
+            resetOnboardingState();
             window.location.reload();
           });
         }}

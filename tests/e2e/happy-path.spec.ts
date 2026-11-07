@@ -11,9 +11,10 @@ import { expect, test, type Page } from '@playwright/test';
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
-  // Fresh save for every scenario.
+  // Fresh save and fresh tour for every scenario.
   await page.evaluate(() => {
     void indexedDB.deleteDatabase('boarding-house-tycoon');
+    localStorage.removeItem('bht-onboarding');
   });
   await page.reload();
   await expect(page.getByText(/Thu nhập ròng/)).toBeVisible({ timeout: 15_000 });
@@ -36,7 +37,39 @@ async function productionState(page: Page) {
   );
 }
 
-test('1. fresh game boots into the GDD starting state', async ({ page }) => {
+test('1. onboarding tour: shows step 1 on a new save, advances and skips', async ({ page }) => {
+  // DOM is fine (see prior probes); Playwright locator actionability stalls on
+  // this page, so drive the tour with direct evaluate calls only.
+  await page.waitForTimeout(1_500);
+  for (let i = 0; i < 20; i++) {
+    const present = await page.evaluate(() => document.querySelector('.onboarding') !== null);
+    if (present) break;
+    await page.waitForTimeout(300);
+  }
+  const text = await page.evaluate(
+    () => document.querySelector('.onboarding')?.textContent ?? '',
+  );
+  expect(text).toContain('Bước');
+  expect(text).toContain('Hướng dẫn nhanh');
+
+  await page.evaluate(() => {
+    const button = document.querySelector('.onboarding')?.querySelector('button');
+    if (button instanceof HTMLButtonElement) {
+      button.click();
+    }
+  });
+  await page.waitForTimeout(800);
+  const afterSkip = await page.evaluate(() => document.querySelector('.onboarding') !== null);
+  expect(afterSkip).toBe(false);
+
+  // Completion is saved: reload keeps the tour absent.
+  await page.reload();
+  await page.waitForTimeout(2_500);
+  const afterReload = await page.evaluate(() => document.querySelector('.onboarding') !== null);
+  expect(afterReload).toBe(false);
+});
+
+test('2. fresh game boots into the GDD starting state', async ({ page }) => {
   await expect(page.getByText('Nhiệm vụ 1')).toBeVisible();
   const state = (await productionState(page)) as {
     player?: { cashMinorUnits: number };
@@ -143,4 +176,19 @@ test('8. settings panel opens, shows storage status; reset wipes the save', asyn
     missions?: { completedMissionNumbers: number[] };
   };
   expect(state.missions?.completedMissionNumbers).toEqual([]);
+});
+
+test('10. congratulation screen appears when the mission chain is complete', async ({ page }) => {
+  await page.getByRole('button', { name: /Nhận vào Phòng/ }).first().click();
+  await page.evaluate(() => {
+    const hooks = (window as unknown as { __bht?: { forceCompletion: () => void } }).__bht;
+    hooks?.forceCompletion();
+  });
+  const congrats = page.locator('.congrats');
+  await expect(congrats).toBeVisible();
+  await expect(congrats.getByText(/Hoàn thành MVP/)).toBeVisible();
+  await congrats.getByRole('button', { name: /Tiếp tục chơi tự do/ }).click();
+  await expect(congrats).toBeHidden();
+  // After the chain: no mission card text and free play continues.
+  await expect(page.getByText('Nhiệm vụ 1')).toBeHidden();
 });

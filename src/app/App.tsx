@@ -12,6 +12,8 @@ import { RoomDetailPanel } from './components/RoomDetailPanel';
 import { TenantPanel } from './components/TenantPanel';
 import { EventDialog } from './components/EventDialog';
 import { SettingsPanel } from './components/SettingsPanel';
+import { OnboardingOverlay } from './components/OnboardingOverlay';
+import { CongratulationScreen } from './components/congratulations/CongratulationScreen';
 
 export function App() {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -98,6 +100,8 @@ export function App() {
       ) : null}
       {gameState !== null && selectedRoomId === null ? <TenantPanel /> : null}
       <EventDialog />
+      <OnboardingOverlay />
+      <CongratulationScreen />
       <SettingsPanel />
     </div>
   );

@@ -8,18 +8,22 @@ interface SettingsState {
   soundEnabled: boolean;
   storagePersisted: boolean | null;
   open: boolean;
+  congratsDismissed: boolean;
   toggleOpen: () => void;
   setSoundEnabled: (enabled: boolean) => void;
   setStoragePersisted: (value: boolean) => void;
+  setCongratsDismissed: (value: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
   soundEnabled: true,
   storagePersisted: null,
   open: false,
+  congratsDismissed: false,
   toggleOpen: () => set((s) => ({ open: !s.open })),
   setSoundEnabled: (enabled) => set({ soundEnabled: enabled }),
   setStoragePersisted: (storagePersisted) => set({ storagePersisted }),
+  setCongratsDismissed: (congratsDismissed) => set({ congratsDismissed }),
 }));
 
 const SOUND_KEY = 'bht-sound-enabled';
