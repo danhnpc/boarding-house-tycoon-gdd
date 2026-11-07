@@ -1,0 +1,10 @@
+{
+  "name": "Boarding House Tycoon",
+  "short_name": "BHT",
+  "description": "Quản lý nhà trọ Việt Nam — casual idle tycoon",
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#9ed0b1",
+  "theme_color": "#2e5d34"
+}
