@@ -19,6 +19,7 @@ import type { Rng } from '../domain/shared/rng';
 import type { CandidateId, GameState, RoomId } from '../domain/types';
 import type { OnlineProvider } from '../platform/visibility';
 import type { SaveGameService } from '../persistence/save-game-service';
+import { BootFailure } from './boot-failure';
 
 export type GameCommand =
   | { type: 'BUILD_ROOM'; roomId: RoomId }
@@ -101,10 +102,9 @@ export class GameApp {
     if (outcome.kind !== 'ok') {
       // Corrupt ('corrupt') or newer build ('newer-version'): the raw record
       // stays on disk; the UI must present the recoverable path, never reset.
-      throw new Error(
-        outcome.kind === 'corrupt'
-          ? `SAVE_CORRUPT: ${outcome.note}`
-          : `SAVE_NEWER_VERSION: ${outcome.version}`,
+      throw new BootFailure(
+        outcome.kind,
+        outcome.kind === 'corrupt' ? outcome.note : `schemaVersion ${outcome.version}`,
       );
     }
 

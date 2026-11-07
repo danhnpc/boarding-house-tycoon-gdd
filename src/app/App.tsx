@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { bootPromise, gameApp } from './game-bootstrap';
+import { BootFailure } from '../application/boot-failure';
 import { createGame } from '../game/bootstrap/createGame';
 import { netRentPerGameDayMinor } from '../domain/economy/rent';
 import { installLifecycleFlush, removeLifecycleFlush } from '../platform/lifecycle';
@@ -14,6 +15,7 @@ import { EventDialog } from './components/EventDialog';
 import { SettingsPanel } from './components/SettingsPanel';
 import { OnboardingOverlay } from './components/OnboardingOverlay';
 import { CongratulationScreen } from './components/congratulations/CongratulationScreen';
+import { BootErrorScreen } from './components/BootErrorScreen';
 
 export function App() {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -36,7 +38,18 @@ export function App() {
           }
         }
       })
-      .catch((error: unknown) => console.error('boot failed', error));
+      .catch((bootFailed: unknown) => {
+        // Any boot failure must surface (skill rule 8): never leave the UI on
+        // "Đang tải…" forever.
+        if (bootFailed instanceof BootFailure) {
+          useGameStore.getState().setBootError(bootFailed.kind, bootFailed.detail);
+          return;
+        }
+        console.error('boot failed', bootFailed);
+        useGameStore
+          .getState()
+          .setBootError('corrupt', bootFailed instanceof Error ? bootFailed.message : String(bootFailed));
+      });
     installLifecycleFlush(gameApp, window);
     return () => {
       removeLifecycleFlush(window);
@@ -100,6 +113,7 @@ export function App() {
       ) : null}
       {gameState !== null && selectedRoomId === null ? <TenantPanel /> : null}
       <EventDialog />
+      <BootErrorScreen />
       <OnboardingOverlay />
       <CongratulationScreen />
       <SettingsPanel />

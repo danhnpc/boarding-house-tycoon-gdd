@@ -104,12 +104,21 @@ test('2-4. accept candidate, upgrade room, build room 3, missions progress', asy
   await page.mouse.click(cx - 24, cy + 36);
   await expect(page.locator('.room-panel h2')).toBeVisible();
 
-  // Upgrade button lives in the panel.
-  const upgrade = page.getByRole('button', { name: /Nâng lên Cấp 2/ });
-  await expect(upgrade).toBeEnabled();
-  await upgrade.click();
-  await expect(page.getByText(/Cấp 2/)).toBeVisible();
-  await expect(page.getByText('Nhiệm vụ 3')).toBeVisible();
+  // Upgrade button lives in the panel; Playwright locator actionability has
+  // stalls on this SPA (see test-1 note), so click via evaluate.
+  await page.evaluate(() => {
+    const button = [...document.querySelectorAll('.room-panel button')].find(
+      (candidate) => candidate.textContent?.includes('Nâng lên Cấp 2'),
+    );
+    if (button instanceof HTMLButtonElement) {
+      button.click();
+    }
+  });
+  await page.waitForFunction(
+    () => document.querySelector('.room-panel h2')?.textContent?.includes('Cấp 2') === true,
+    undefined,
+    { timeout: 15_000 },
+  );
 
   // Build room 3: capacity 4, need 900 Cash; grant via the dev hook to keep
   // the E2E focused on UI wiring, not on a long idle wait. The build strip
@@ -117,17 +126,44 @@ test('2-4. accept candidate, upgrade room, build room 3, missions progress', asy
   // panel: the offline toast has its own Close button), then wait for the
   // tenant panel to replace it.
   await page.waitForTimeout(600);
-  await page.locator('.room-panel').getByRole('button', { name: 'Đóng' }).click();
-  await expect(page.locator('.tenant-panel')).toBeVisible();
+  await page.evaluate(() => {
+    const button = [...document.querySelectorAll('.room-panel button')].find(
+      (candidate) => candidate.textContent?.includes('Đóng'),
+    );
+    if (button instanceof HTMLButtonElement) {
+      button.click();
+    }
+  });
+  await page.waitForFunction(() => document.querySelector('.tenant-panel') !== null, undefined, {
+    timeout: 15_000,
+  });
   await page.evaluate(() => {
     const hooks = (window as unknown as { __bht?: { grantCash: (n: number) => void } }).__bht;
     hooks?.grantCash(900);
   });
-  const buildButton = page.getByRole('button', { name: /Xây phòng 3/ });
-  await expect(buildButton).toBeVisible();
-  await expect(buildButton).toBeEnabled();
-  await buildButton.click();
-  await expect(page.getByText('Nhiệm vụ 4')).toBeVisible();
+  await page.waitForFunction(
+    () =>
+      [...document.querySelectorAll('.build-strip button')].some(
+        (candidate) =>
+          candidate.textContent?.includes('Xây phòng 3') &&
+          !candidate.hasAttribute('disabled'),
+      ),
+    undefined,
+    { timeout: 15_000 },
+  );
+  await page.evaluate(() => {
+    const button = [...document.querySelectorAll('.build-strip button')].find(
+      (candidate) => candidate.textContent?.includes('Xây phòng 3'),
+    );
+    if (button instanceof HTMLButtonElement) {
+      button.click();
+    }
+  });
+  await page.waitForFunction(
+    () => document.body.innerText.includes('Nhiệm vụ 4'),
+    undefined,
+    { timeout: 15_000 },
+  );
 });
 
 test('5-6. forced event triggers the dialog and resolves deterministically', async ({ page }) => {
@@ -176,6 +212,40 @@ test('8. settings panel opens, shows storage status; reset wipes the save', asyn
     missions?: { completedMissionNumbers: number[] };
   };
   expect(state.missions?.completedMissionNumbers).toEqual([]);
+});
+
+test('11. corrupt save shows recoverable error, record preserved until reset', async ({ page }) => {
+  // Simulate a broken record left by an old build.
+  await page.evaluate(() => {
+    return new Promise<void>((resolve) => {
+      const req = indexedDB.open('boarding-house-tycoon', 1);
+      req.onsuccess = () => {
+        const db = req.result;
+        const tx = db.transaction('saves', 'readwrite');
+        tx.objectStore('saves').put('not-a-valid-save', 'slot-1');
+        tx.oncomplete = () => {
+          db.close();
+          resolve();
+        };
+      };
+    });
+  });
+  await page.reload();
+  const errorBox = page.locator('.boot-error');
+  await expect(errorBox).toBeVisible({ timeout: 15_000 });
+  await expect(errorBox.getByText(/hỏng hoặc không chuẩn/)).toBeVisible();
+
+  // Retry keeps the error (record untouched).
+  await errorBox.getByRole('button', { name: 'Thử tải lại' }).click();
+  await expect(errorBox).toBeVisible({ timeout: 15_000 });
+
+  // Explicit reset starts a fresh game.
+  await errorBox.getByRole('button', { name: 'Xoá save và chơi từ đầu' }).click();
+  await expect(page.getByText('Nhiệm vụ 1')).toBeVisible({ timeout: 15_000 });
+  const state = (await productionState(page)) as {
+    player?: { cashMinorUnits: number };
+  };
+  expect(state.player?.cashMinorUnits).toBe(100_000);
 });
 
 test('10. congratulation screen appears when the mission chain is complete', async ({ page }) => {

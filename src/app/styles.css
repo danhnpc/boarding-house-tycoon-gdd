@@ -251,6 +251,10 @@ body,
   z-index: 50;
 }
 
+.boot-error .danger {
+  background: #b3261e;
+}
+
 .event-dialog {
   background: #fffdf6;
   border-radius: 14px;

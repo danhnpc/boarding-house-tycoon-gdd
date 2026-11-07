@@ -29,19 +29,19 @@ export const useUiStore = create<UiState & UiActions>((set) => ({
 interface GameStoreSlice {
   /** Canonical snapshot; null until the boot service hydrates it. */
   gameState: import('../domain/types').GameState | null;
-  bootError: { kind: 'corrupt' | 'newer-version' } | null;
+  bootError: { kind: 'corrupt' | 'newer-version'; raw: string } | null;
 }
 
 interface GameStoreActions {
   setGameState: (state: import('../domain/types').GameState) => void;
-  setBootError: (kind: 'corrupt' | 'newer-version') => void;
+  setBootError: (kind: 'corrupt' | 'newer-version', raw: string) => void;
 }
 
 export const useGameStore = create<GameStoreSlice & GameStoreActions>((set) => ({
   gameState: null,
   bootError: null,
   setGameState: (gameState) => set({ gameState }),
-  setBootError: (kind) => set({ bootError: { kind } }),
+  setBootError: (kind, raw) => set({ bootError: { kind, raw } }),
 }));
 
 interface OfflineSlice {
