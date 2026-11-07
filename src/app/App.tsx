@@ -1,71 +1,100 @@
 import { useEffect, useRef, useState } from 'react';
-import { startOrResume } from '../application/game-service';
+import { bootPromise, gameApp } from './game-bootstrap';
 import { createGame } from '../game/bootstrap/createGame';
-import { systemTimeProvider } from '../platform/system-time';
-import { IndexedDbSaveAdapter, requestPersistentStorage } from '../persistence/indexeddb-adapter';
-import { SaveGameService } from '../persistence/save-game-service';
-import { useGameStore, useUiStore } from '../state/game-store';
+import { netRentPerGameDayMinor } from '../domain/economy/rent';
+import { installLifecycleFlush, removeLifecycleFlush } from '../platform/lifecycle';
+import { useGameStore, useOfflineToastStore, useUiStore } from '../state/game-store';
 import { formatCash } from './format/cash';
+import { t } from './i18n';
+import { MissionCard } from './components/MissionCard';
+import { OfflineToast } from './components/OfflineToast';
 import { RoomDetailPanel } from './components/RoomDetailPanel';
-
-const saves = new SaveGameService(new IndexedDbSaveAdapter(), () => Date.now());
+import { TenantPanel } from './components/TenantPanel';
 
 export function App() {
   const hostRef = useRef<HTMLDivElement>(null);
-  const worldReady = useUiStore((state) => state.worldReady);
-  const selectedRoomId = useUiStore((state) => state.selectedRoomId);
-  const gameState = useGameStore((state) => state.gameState);
-  const bootError = useGameStore((state) => state.bootError);
+  const gameState = useGameStore((s) => s.gameState);
+  const selectedRoomId = useUiStore((s) => s.selectedRoomId);
   const [bootStarted, setBootStarted] = useState(false);
 
-  // Boot the canonical state once (guard against StrictMode double-mount).
-  // Phase 2 replaces this toast canvas with the recoverable error screen.
+  // Boot once; StrictMode remounts reuse the module-level bootPromise.
   useEffect(() => {
     if (bootStarted) {
       return;
     }
     setBootStarted(true);
-    void requestPersistentStorage();
-    startOrResume(systemTimeProvider, saves)
-      .then((boot) => useGameStore.getState().setGameState(boot.state))
-      .catch((error: unknown) => {
-        if (error instanceof Error && error.name === 'GameUnrecoverableError') {
-          const kind = (error as unknown as { kind: 'corrupt' | 'newer-version' }).kind;
-          useGameStore.getState().setBootError(kind);
+    void bootPromise
+      .then((boot) => {
+        if (boot.offline !== null) {
+          const creditedCash = Math.floor(boot.offline.creditedMinor / 100);
+          if (creditedCash > 0) {
+            useOfflineToastStore.getState().setOfflineToast(creditedCash);
+          }
         }
-      });
+      })
+      .catch((error: unknown) => console.error('boot failed', error));
+    installLifecycleFlush(gameApp, window);
+    return () => {
+      removeLifecycleFlush(window);
+    };
   }, [bootStarted]);
 
   // StrictMode intentional: it mounts, cleans up and remounts this effect,
-  // which is exactly the duplicate-instance risk the spike disproved
-  // (tech doc 3.3, 17).
+  // which is exactly the duplicate-instance risk the spike disproved.
   useEffect(() => {
     const host = hostRef.current;
     if (!host) {
       return undefined;
     }
-    const game = createGame(host);
+    const handle = createGame(host);
+    // State flows one-way into the scene; the subscriptions live in this
+    // effect's closure and are removed in cleanup (react-phaser-bridge
+    // rules 7 and 8). A destroyed game's forwarding is skipped.
+    const forwardStore = useGameStore.subscribe((s) => {
+      if (handle.game.isRunning && s.gameState !== null) {
+        handle.forwardGameState(s.gameState);
+      }
+    });
+    const forwardSelection = useUiStore.subscribe((s) => {
+      if (handle.game.isRunning) {
+        handle.forwardSelection?.(s.selectedRoomId);
+      }
+    });
     return () => {
-      game.destroy();
+      forwardStore();
+      forwardSelection();
+      handle.destroy();
     };
   }, []);
+
+  // HUD-only derived read: the rate per Game Day (which is one real hour).
+  const netIncomeMinor =
+    gameState === null ? 0 : netRentPerGameDayMinor(gameState, Date.now());
 
   return (
     <div className="app" aria-label="Main Property View">
       <div ref={hostRef} className="game-host" />
       <header className="hud-top">
-        <span className="hud-title">Boarding House Tycoon</span>
+        <span className="hud-title">{t('app.title')}</span>
+        <span className="hud-cash">
+          {gameState !== null ? `💵 ${formatCash(gameState.player.cashMinorUnits)}` : ''}
+        </span>
         <span className="hud-status">
-          {bootError !== null
-            ? 'Save error — recoverable screen comes in Phase 2'
-            : gameState !== null
-              ? `Cash: ${formatCash(gameState.player.cashMinorUnits)}`
-              : worldReady
-                ? 'World ready'
-                : 'Loading…'}
+          {gameState !== null
+            ? t('hud.netIncome', { amount: formatCash(netIncomeMinor) })
+            : t('hud.loading')}
         </span>
       </header>
-      {selectedRoomId !== null ? <RoomDetailPanel roomId={selectedRoomId} /> : null}
+      {gameState !== null ? (
+        <div className="media-strip">
+          <OfflineToast />
+          <MissionCard />
+        </div>
+      ) : null}
+      {gameState !== null && selectedRoomId !== null ? (
+        <RoomDetailPanel roomId={selectedRoomId} />
+      ) : null}
+      {gameState !== null && selectedRoomId === null ? <TenantPanel /> : null}
     </div>
   );
 }

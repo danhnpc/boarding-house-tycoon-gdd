@@ -44,6 +44,19 @@ export const useGameStore = create<GameStoreSlice & GameStoreActions>((set) => (
   setBootError: (kind) => set({ bootError: { kind } }),
 }));
 
+interface OfflineSlice {
+  offlineToast: { creditedCash: number; capped: boolean } | null;
+  setOfflineToast: (creditedCash: number) => void;
+  dismissOfflineToast: () => void;
+}
+
+export const useOfflineToastStore = create<OfflineSlice>((set) => ({
+  offlineToast: null,
+  setOfflineToast: (creditedCash) =>
+    set({ offlineToast: { creditedCash, capped: true } }),
+  dismissOfflineToast: () => set({ offlineToast: null }),
+}));
+
 // Wire the bridge into the store once. Bridge is a singleton; the returned
 // unsubscribe is a no-op here because nothing else ever replaces this wiring.
 let wired = false;

@@ -39,11 +39,23 @@ export class GameApp {
   private dirty = false;
   private tickTimer: ReturnType<typeof setInterval> | null = null;
   private autosaveTimer: ReturnType<typeof setInterval> | null = null;
+  private stateListener: ((state: GameState) => void) | null = null;
 
   constructor(
     private readonly time: TimeProvider,
     private readonly saves: SaveGameService,
   ) {}
+
+  /** Rendering layers subscribe here; discrete state changes only (skill rule 6). */
+  onStateChange(listener: (state: GameState) => void): void {
+    this.stateListener = listener;
+  }
+
+  private publish(): void {
+    if (this.state !== null) {
+      this.stateListener?.(this.state);
+    }
+  }
 
   async boot(): Promise<BootResult> {
     const outcome = await this.saves.loadState();
@@ -51,6 +63,7 @@ export class GameApp {
       const state = createInitialGameState(this.time);
       this.state = state;
       await this.saves.saveState(state);
+      this.publish();
       this.startTimers();
       return {
         state,
@@ -104,6 +117,7 @@ export class GameApp {
     }
     this.state = state;
     await this.saves.saveState(state);
+    this.publish();
     this.startTimers();
     return {
       state,
@@ -153,6 +167,7 @@ export class GameApp {
     // (tech doc 6.5): a failed command never progresses a mission.
     this.state = evaluateMissions(result.state);
     this.dirty = true;
+    this.publish();
     void this.saveNow();
     return result;
   }
@@ -166,6 +181,7 @@ export class GameApp {
     if (result.ok) {
       this.state = result.state;
       this.dirty = true;
+      this.publish();
     } else {
       // Backwards-moving device clock: checkpoint resets to now, zero income
       // (GDD 8.3). No mission-eligible evidence existed anyway.
