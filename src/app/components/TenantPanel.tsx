@@ -1,11 +1,52 @@
 import {
   RENT_PER_GAME_DAY_MINOR,
   TENANT_BUDGET_PER_GAME_DAY_MINOR,
+  BUILD_COST_MINOR,
 } from '../../domain/config/balance';
 import { gameApp } from '../game-bootstrap';
 import { useGameStore } from '../../state/game-store';
 import { t } from '../i18n';
 import { formatCash } from '../format/cash';
+
+function BuildRoomStrip() {
+  const gameState = useGameStore((s) => s.gameState);
+  if (gameState === null) {
+    return null;
+  }
+  const built = new Set(gameState.building.rooms.map((r) => r.roomId));
+  const buildStatus = Object.entries(BUILD_COST_MINOR).map(([n, costMinor]) => ({
+    n: Number(n),
+    costMinor,
+    exists: built.has(`room-${n}`),
+  }));
+  const visible = buildStatus.filter((b) => !b.exists && b.n <= 6);
+  if (visible.length === 0) {
+    return null;
+  }
+  return (
+    <div className="build-strip">
+      <h4>{t('build.title')}</h4>
+      {visible.map((b) => {
+        const noCapacity = gameState.building.rooms.length + 1 > gameState.progression.roomCapacity;
+        const affordable = gameState.player.cashMinorUnits >= b.costMinor;
+        const disabled = noCapacity || !affordable;
+        return (
+          <button
+            key={b.n}
+            type="button"
+            disabled={disabled}
+            onClick={() => {
+              void gameApp.execute({ type: 'BUILD_ROOM', roomId: `room-${b.n}` });
+            }}
+          >
+            {t('build.room', { n: b.n, amount: formatCash(b.costMinor) })}
+            {noCapacity ? ` — ${t('build.needMilestone')}` : ''}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export function TenantPanel() {
   const gameState = useGameStore((s) => s.gameState);
@@ -68,6 +109,7 @@ export function TenantPanel() {
           </div>
         );
       })}
+      <BuildRoomStrip />
     </aside>
   );
 }

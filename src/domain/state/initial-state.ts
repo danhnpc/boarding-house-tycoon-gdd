@@ -47,10 +47,18 @@ export function createInitialGameState(time: TimeProvider): GameState {
     },
     events: {
       activeEventId: null,
+      eventPayload: null,
+      globalCooldownRemainingOnlineMs: 0,
+      perEventCooldownOnlineMs: {},
+      recentEventOnlineTimes: [],
+      noiseTargetCooldownOnlineMsRecord: {},
+      suppressedOnlineMs: {},
+      lastCheckOnlineMs: 0,
     },
     time: {
       lastCheckpointAt: time.now(),
       incomeRemainderMinorUnits: 0,
+      onlineMs: 0,
     },
   };
 }

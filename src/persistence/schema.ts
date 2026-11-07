@@ -34,14 +34,11 @@ function isLevel(value: unknown): value is RoomLevel {
   return typeof value === 'number' && LEVELS.includes(value);
 }
 
-export function validateState(raw: unknown): raw is GameState {
-  if (!isRecord(raw)) {
+export function validateCoreState(raw: unknown, version: number): raw is Record<string, unknown> {
+  if (!isRecord(raw) || raw.schemaVersion !== version) {
     return false;
   }
-  if (raw.schemaVersion !== SCHEMA_VERSION) {
-    return false;
-  }
-  const { player, building, tenants, candidates, missions, progression } = raw;
+  const { player, building, tenants, candidates, missions, progression, modifiers, time } = raw;
   if (!isRecord(player) || !isInteger(player.cashMinorUnits)) {
     return false;
   }
@@ -83,6 +80,50 @@ export function validateState(raw: unknown): raw is GameState {
   ) {
     return false;
   }
+  if (!isRecord(modifiers) || !Array.isArray(modifiers.incomeReductions)) {
+    return false;
+  }
+  if (!isRecord(time) || !isInteger(time.lastCheckpointAt)) {
+    return false;
+  }
+  return true;
+}
+
+/** Full validation of a current-version state after migrations run. */
+export function validateState(raw: unknown): raw is GameState {
+  if (!validateCoreState(raw, SCHEMA_VERSION)) {
+    return false;
+  }
+  const state = raw as unknown as GameState;
+  if (!isInteger(state.time.onlineMs as unknown)) {
+    return false;
+  }
+  const { events } = state as { events?: unknown };
+  if (!isRecord(events)) {
+    return false;
+  }
+  if (!Array.isArray(events.recentEventOnlineTimes)) {
+    return false;
+  }
+  if (
+    !isRecord(events.perEventCooldownOnlineMs) ||
+    !isRecord(events.noiseTargetCooldownOnlineMsRecord) ||
+    !isRecord(events.suppressedOnlineMs)
+  ) {
+    return false;
+  }
+  if (
+    !(events.activeEventId === null || typeof events.activeEventId === 'string') ||
+    !(events.eventPayload === null || isRecord(events.eventPayload))
+  ) {
+    return false;
+  }
+  if (
+    !isInteger(events.globalCooldownRemainingOnlineMs as unknown) ||
+    !isInteger(events.lastCheckOnlineMs as unknown)
+  ) {
+    return false;
+  }
   return true;
 }
 
@@ -90,8 +131,25 @@ export function validateState(raw: unknown): raw is GameState {
  * Sequential migrations. Each entry upgrades GameState shape one version.
  * Never skip steps; never edit a migration after release — append a new one.
  */
-const MIGRATIONS: Record<number, (state: GameState) => GameState> = {
-  1: (state) => state, // v1 is current; placeholder keeps the chain explicit
+const MIGRATIONS: Record<number, (state: Record<string, unknown>) => Record<string, unknown>> = {
+  // v1 → v2: event system fields + online-time clock (Phase 3).
+  1: (state) => ({
+    ...state,
+    events: {
+      activeEventId: null,
+      eventPayload: null,
+      globalCooldownRemainingOnlineMs: 0,
+      perEventCooldownOnlineMs: {},
+      recentEventOnlineTimes: [],
+      noiseTargetCooldownOnlineMsRecord: {},
+      suppressedOnlineMs: {},
+      lastCheckOnlineMs: 0,
+    },
+    time: {
+      ...(state.time as Record<string, unknown>),
+      onlineMs: 0,
+    },
+  }),
 };
 
 /**
@@ -116,7 +174,7 @@ export function hydrateSave(raw: unknown): HydrateOutcome {
     if (migration === undefined) {
       return { kind: 'corrupt', note: `missing migration from version ${v}` };
     }
-    if (!validateState(state)) {
+    if (!validateCoreState(state, v)) {
       return { kind: 'corrupt', note: `state invalid at version ${v}` };
     }
     state = migration(state);

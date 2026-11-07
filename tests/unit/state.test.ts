@@ -46,7 +46,16 @@ describe('initial state (GDD 3.4)', () => {
     const state = initialFrozenState();
     expect(state.missions).toEqual({ completedMissionNumbers: [], nextMissionNumber: 1 });
     expect(state.modifiers.incomeReductions).toEqual([]);
-    expect(state.events).toEqual({ activeEventId: null });
+    expect(state.events).toEqual({
+      activeEventId: null,
+      eventPayload: null,
+      globalCooldownRemainingOnlineMs: 0,
+      perEventCooldownOnlineMs: {},
+      recentEventOnlineTimes: [],
+      noiseTargetCooldownOnlineMsRecord: {},
+      suppressedOnlineMs: {},
+      lastCheckOnlineMs: 0,
+    });
   });
 });
 

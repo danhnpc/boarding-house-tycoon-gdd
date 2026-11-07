@@ -66,6 +66,7 @@ export function accrueIncome(state: GameState, now: number): CommandResult<GameS
         state.player.lifetimeGrossIncomeMinorUnits + Math.floor(grossFloatMinorUnits),
     },
     time: {
+      ...state.time,
       lastCheckpointAt: now,
       incomeRemainderMinorUnits: remainderMinorUnits,
     },

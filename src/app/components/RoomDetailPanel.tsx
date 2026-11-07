@@ -7,7 +7,7 @@ import {
 } from '../../domain/config/balance';
 import { gameBridge } from '../../game/bridge/gameBridge';
 import { gameApp } from '../game-bootstrap';
-import { useGameStore } from '../../state/game-store';
+import { useGameStore, useUiStore } from '../../state/game-store';
 import { t } from '../i18n';
 import { formatCash } from '../format/cash';
 
@@ -89,7 +89,14 @@ export function RoomDetailPanel({ roomId }: RoomDetailPanelProps) {
         <button
           type="button"
           className="secondary"
-          onClick={() => gameBridge.sendCommand({ type: 'CLEAR_SELECTION' })}
+          onClick={() => {
+            // Selection is UI-owned state: clear it via the UI store directly.
+            if (import.meta.env.DEV) {
+              console.log('[bht-close] clicked');
+            }
+            useUiStore.getState().clearSelection();
+            gameBridge.sendCommand({ type: 'CLEAR_SELECTION' });
+          }}
         >
           {t('close')}
         </button>

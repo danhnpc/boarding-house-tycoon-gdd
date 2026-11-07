@@ -10,6 +10,7 @@ import { MissionCard } from './components/MissionCard';
 import { OfflineToast } from './components/OfflineToast';
 import { RoomDetailPanel } from './components/RoomDetailPanel';
 import { TenantPanel } from './components/TenantPanel';
+import { EventDialog } from './components/EventDialog';
 
 export function App() {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -95,6 +96,7 @@ export function App() {
         <RoomDetailPanel roomId={selectedRoomId} />
       ) : null}
       {gameState !== null && selectedRoomId === null ? <TenantPanel /> : null}
+      <EventDialog />
     </div>
   );
 }

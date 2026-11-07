@@ -154,6 +154,7 @@ describe('integrateOffline (GDD 8.1)', () => {
       time: {
         lastCheckpointAt: first.toMs,
         incomeRemainderMinorUnits: first.remainderMinorUnits,
+        onlineMs: 0,
       },
     };
     const second = integrateOffline(resumedState, 2 * HOUR_MS + 5);
