@@ -5,10 +5,32 @@ import {
   ROOM_GRID,
   TILE_H,
   TILE_W,
+  WALL_H,
   depthFor,
+  pointInConvexPolygon,
   project,
   roomNumber,
+  roomSilhouette,
 } from '../../src/game/world/layout';
+
+describe('room click area', () => {
+  const center = project({ gridX: 0, gridY: 0 });
+
+  it('covers the walls and roof above the floor, not just the floor', () => {
+    const shape = roomSilhouette({ gridX: 0, gridY: 0 });
+    // A point on the wall, well above the floor diamond.
+    expect(pointInConvexPolygon(center.x, center.y - WALL_H, shape)).toBe(true);
+    // A point near the roof apex.
+    expect(pointInConvexPolygon(center.x, center.y - TILE_H / 2 - WALL_H + 4, shape)).toBe(true);
+  });
+
+  it('rejects points outside the room', () => {
+    const shape = roomSilhouette({ gridX: 0, gridY: 0 });
+    expect(pointInConvexPolygon(center.x + TILE_W, center.y, shape)).toBe(false);
+    expect(pointInConvexPolygon(center.x, center.y + TILE_H, shape)).toBe(false);
+    expect(pointInConvexPolygon(center.x, center.y - TILE_H / 2 - WALL_H - 5, shape)).toBe(false);
+  });
+});
 
 describe('isometric projection', () => {
   it('grid origin projects to the world center (0,0)', () => {

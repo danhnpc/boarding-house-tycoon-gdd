@@ -37,6 +37,40 @@ export function project(grid: GridPos): ScreenPos {
   };
 }
 
+/**
+ * Full visible silhouette of a room prism: the roof diamond (floor raised by
+ * WALL_H) joined with the floor diamond. Convex hexagon, clockwise on screen.
+ * This is the click and hover area, so the walls and roof are clickable too.
+ */
+export function roomSilhouette(grid: GridPos): ScreenPos[] {
+  const c = project(grid);
+  const halfW = TILE_W / 2;
+  const halfH = TILE_H / 2;
+  return [
+    { x: c.x, y: c.y - halfH - WALL_H },
+    { x: c.x + halfW, y: c.y - WALL_H },
+    { x: c.x + halfW, y: c.y },
+    { x: c.x, y: c.y + halfH },
+    { x: c.x - halfW, y: c.y },
+    { x: c.x - halfW, y: c.y - WALL_H },
+  ];
+}
+
+/** True when (x, y) lies inside or on the edge of a convex polygon. */
+export function pointInConvexPolygon(x: number, y: number, polygon: readonly ScreenPos[]): boolean {
+  let sign = 0;
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i];
+    const b = polygon[(i + 1) % polygon.length];
+    const cross = (b.x - a.x) * (y - a.y) - (b.y - a.y) * (x - a.x);
+    if (cross === 0) continue;
+    const s = Math.sign(cross);
+    if (sign === 0) sign = s;
+    else if (s !== sign) return false;
+  }
+  return true;
+}
+
 /** Ground fan is the bottom vertex of the floor diamond — depth anchor (skill rule 2). */
 export function depthFor(grid: GridPos): number {
   return grid.gridX + grid.gridY;

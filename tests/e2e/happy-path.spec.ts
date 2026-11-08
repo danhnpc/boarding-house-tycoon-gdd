@@ -69,13 +69,17 @@ test('1b. onboarding card sits above the bottom sheet, so panel actions stay cli
 
 test('1c. locked upgrade explains why it is disabled', async ({ page }) => {
   await page.getByRole('button', { name: 'Bỏ qua hướng dẫn' }).click();
+  // Dismissing the tour resizes the canvas and re-centres the camera; wait for it.
+  await page.waitForTimeout(1_200);
   const canvas = page.locator('canvas');
   const box = await canvas.boundingBox();
   if (box === null) throw new Error('canvas missing');
   // Room 1 at boot is occupied but still on Level 1; Level 2 needs Mission 1.
-  await page.mouse.click(box.x + box.width / 2 - 24, box.y + box.height / 2 + 36);
+  // Room 2 (in front) covers the centre of room 1, so click room 1's left side.
+  await page.mouse.click(box.x + box.width / 2 - 48, box.y + box.height / 2 + 36);
   const panel = page.locator('.room-panel');
   await expect(panel).toBeVisible();
+  await expect(panel.locator('h2')).toContainText('Phòng 1');
   const upgrade = panel.getByRole('button', { name: /Nâng lên Cấp 2/ });
   await expect(upgrade).toBeDisabled();
   await expect(panel.locator('.panel-hint')).toHaveText('Cần hoàn thành cột mốc để mở Cấp 2');
@@ -112,9 +116,10 @@ test('2-4. accept candidate, upgrade room, build room 3, missions progress', asy
   const cx = box.x + box.width / 2;
   const cy = box.y + box.height / 2;
   // 2-room layout: contentCenter=(24,12); camera at (24,-36); room-1 at (0,0).
-  await page.mouse.move(cx - 24, cy + 36);
-  await page.mouse.click(cx - 24, cy + 36);
-  await expect(page.locator('.room-panel h2')).toBeVisible();
+  // Room 2 covers the centre of room 1, so click room 1's left side at world (-24,0).
+  await page.mouse.move(cx - 48, cy + 36);
+  await page.mouse.click(cx - 48, cy + 36);
+  await expect(page.locator('.room-panel h2')).toContainText('Phòng 1');
 
   // Real click on the upgrade button in the panel (it is enabled: Cash covers
   // the 650 Level 2 cost and Mission 1 unlocked Level 2).
