@@ -8,7 +8,7 @@ import {
   UPGRADE_COST_MINOR,
 } from '../config/balance';
 import { fail, ok, type CommandResult } from '../shared/result';
-import { maxUnlockedLevel } from '../progression/milestones';
+import { applyProgression, maxUnlockedLevel } from '../progression/milestones';
 import type { GameState, RoomId, RoomLevel, RoomState } from '../types';
 
 function findRoom(state: GameState, roomId: RoomId): RoomState | undefined {
@@ -105,5 +105,6 @@ export function upgradeRoom(state: GameState, roomId: RoomId): CommandResult<Gam
       ),
     },
   };
-  return ok(next);
+  // A level-up can complete a milestone (GDD 4.1), e.g. capacity from Level 3 rooms.
+  return ok(applyProgression(next));
 }

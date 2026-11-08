@@ -40,6 +40,7 @@ describe('initial state (GDD 3.4)', () => {
     const state = initialFrozenState(7);
     expect(state.time.lastCheckpointAt).toBe(7 * 3_600_000);
     expect(state.time.incomeRemainderMinorUnits).toBe(0);
+    expect(state.time.grossRemainderMinorUnits).toBe(0);
   });
 
   it('no mission started, no modifiers, no active event', () => {

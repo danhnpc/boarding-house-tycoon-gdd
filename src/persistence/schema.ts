@@ -1,6 +1,6 @@
 // Save envelope, validation, and the sequential migration chain (ADR 0002,
-// local-first-save-migration skill). v1 has no migrations yet; every later
-// schema change adds `vN -> vN+1` here plus a fixture test.
+// local-first-save-migration skill). Every schema change adds `vN -> vN+1`
+// here (and stamps schemaVersion = N+1 in the output) plus a fixture test.
 
 import { SCHEMA_VERSION } from '../domain/config/balance';
 import type { GameState, RoomLevel } from '../domain/types';
@@ -98,6 +98,9 @@ export function validateState(raw: unknown): raw is GameState {
   if (!isInteger(state.time.onlineMs as unknown)) {
     return false;
   }
+  if (typeof state.time.grossRemainderMinorUnits !== 'number') {
+    return false;
+  }
   const { events } = state as { events?: unknown };
   if (!isRecord(events)) {
     return false;
@@ -135,6 +138,7 @@ const MIGRATIONS: Record<number, (state: Record<string, unknown>) => Record<stri
   // v1 → v2: event system fields + online-time clock (Phase 3).
   1: (state) => ({
     ...state,
+    schemaVersion: 2,
     events: {
       activeEventId: null,
       eventPayload: null,
@@ -148,6 +152,15 @@ const MIGRATIONS: Record<number, (state: Record<string, unknown>) => Record<stri
     time: {
       ...(state.time as Record<string, unknown>),
       onlineMs: 0,
+    },
+  }),
+  // v2 → v3: fractional gross-income remainder (income accounting fix).
+  2: (state) => ({
+    ...state,
+    schemaVersion: 3,
+    time: {
+      ...(state.time as Record<string, unknown>),
+      grossRemainderMinorUnits: 0,
     },
   }),
 };

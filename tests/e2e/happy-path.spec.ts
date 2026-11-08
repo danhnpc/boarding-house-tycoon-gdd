@@ -38,35 +38,51 @@ async function productionState(page: Page) {
 }
 
 test('1. onboarding tour: shows step 1 on a new save, advances and skips', async ({ page }) => {
-  // DOM is fine (see prior probes); Playwright locator actionability stalls on
-  // this page, so drive the tour with direct evaluate calls only.
-  await page.waitForTimeout(1_500);
-  for (let i = 0; i < 20; i++) {
-    const present = await page.evaluate(() => document.querySelector('.onboarding') !== null);
-    if (present) break;
-    await page.waitForTimeout(300);
-  }
-  const text = await page.evaluate(
-    () => document.querySelector('.onboarding')?.textContent ?? '',
-  );
-  expect(text).toContain('Bước');
-  expect(text).toContain('Hướng dẫn nhanh');
+  // Real clicks throughout: the tour must never intercept the game's own controls.
+  const tour = page.locator('.onboarding');
+  await expect(tour).toBeVisible();
+  await expect(tour).toContainText('Hướng dẫn nhanh');
+  await expect(tour).toContainText('Bước 1/4');
 
-  await page.evaluate(() => {
-    const button = document.querySelector('.onboarding')?.querySelector('button');
-    if (button instanceof HTMLButtonElement) {
-      button.click();
-    }
-  });
-  await page.waitForTimeout(800);
-  const afterSkip = await page.evaluate(() => document.querySelector('.onboarding') !== null);
-  expect(afterSkip).toBe(false);
+  await tour.getByRole('button', { name: 'Bỏ qua hướng dẫn' }).click();
+  await expect(tour).toBeHidden();
 
   // Completion is saved: reload keeps the tour absent.
   await page.reload();
-  await page.waitForTimeout(2_500);
-  const afterReload = await page.evaluate(() => document.querySelector('.onboarding') !== null);
-  expect(afterReload).toBe(false);
+  await expect(page.getByText(/Thu nhập ròng/)).toBeVisible({ timeout: 15_000 });
+  await expect(tour).toBeHidden();
+});
+
+test('1b. onboarding card sits above the bottom sheet, so panel actions stay clickable', async ({
+  page,
+}) => {
+  const tour = page.locator('.onboarding');
+  await expect(tour).toBeVisible();
+  // StrictMode double-mounts the game in dev: exactly one canvas must survive.
+  await expect(page.locator('canvas')).toHaveCount(1);
+  const tourBox = await tour.boundingBox();
+  const viewport = page.viewportSize();
+  if (tourBox === null || viewport === null) throw new Error('layout missing');
+  // The card must stay in the top half so the bottom sheet is never covered.
+  expect(tourBox.y + tourBox.height).toBeLessThan(viewport.height / 2);
+});
+
+test('1c. locked upgrade explains why it is disabled', async ({ page }) => {
+  await page.getByRole('button', { name: 'Bỏ qua hướng dẫn' }).click();
+  // Dismissing the tour resizes the canvas and re-centres the camera; wait for it.
+  await page.waitForTimeout(1_200);
+  const canvas = page.locator('canvas');
+  const box = await canvas.boundingBox();
+  if (box === null) throw new Error('canvas missing');
+  // Room 1 at boot is occupied but still on Level 1; Level 2 needs Mission 1.
+  // Room 2 (in front) covers the centre of room 1, so click room 1's left side.
+  await page.mouse.click(box.x + box.width / 2 - 48, box.y + box.height / 2 + 36);
+  const panel = page.locator('.room-panel');
+  await expect(panel).toBeVisible();
+  await expect(panel.locator('h2')).toContainText('Phòng 1');
+  const upgrade = panel.getByRole('button', { name: /Nâng lên Cấp 2/ });
+  await expect(upgrade).toBeDisabled();
+  await expect(panel.locator('.panel-hint')).toHaveText('Cần hoàn thành cột mốc để mở Cấp 2');
 });
 
 test('2. fresh game boots into the GDD starting state', async ({ page }) => {
@@ -100,70 +116,31 @@ test('2-4. accept candidate, upgrade room, build room 3, missions progress', asy
   const cx = box.x + box.width / 2;
   const cy = box.y + box.height / 2;
   // 2-room layout: contentCenter=(24,12); camera at (24,-36); room-1 at (0,0).
-  await page.mouse.move(cx - 24, cy + 36);
-  await page.mouse.click(cx - 24, cy + 36);
-  await expect(page.locator('.room-panel h2')).toBeVisible();
+  // Room 2 covers the centre of room 1, so click room 1's left side at world (-24,0).
+  await page.mouse.move(cx - 48, cy + 36);
+  await page.mouse.click(cx - 48, cy + 36);
+  await expect(page.locator('.room-panel h2')).toContainText('Phòng 1');
 
-  // Upgrade button lives in the panel; Playwright locator actionability has
-  // stalls on this SPA (see test-1 note), so click via evaluate.
-  await page.evaluate(() => {
-    const button = [...document.querySelectorAll('.room-panel button')].find(
-      (candidate) => candidate.textContent?.includes('Nâng lên Cấp 2'),
-    );
-    if (button instanceof HTMLButtonElement) {
-      button.click();
-    }
-  });
-  await page.waitForFunction(
-    () => document.querySelector('.room-panel h2')?.textContent?.includes('Cấp 2') === true,
-    undefined,
-    { timeout: 15_000 },
-  );
+  // Real click on the upgrade button in the panel (it is enabled: Cash covers
+  // the 650 Level 2 cost and Mission 1 unlocked Level 2).
+  const panel = page.locator('.room-panel');
+  await panel.getByRole('button', { name: /Nâng lên Cấp 2/ }).click();
+  await expect(panel.locator('h2')).toContainText('Cấp 2');
 
-  // Build room 3: capacity 4, need 900 Cash; grant via the dev hook to keep
-  // the E2E focused on UI wiring, not on a long idle wait. The build strip
-  // lives in the Tenant panel, so close Room Detail first (scope to the room
-  // panel: the offline toast has its own Close button), then wait for the
-  // tenant panel to replace it.
-  await page.waitForTimeout(600);
-  await page.evaluate(() => {
-    const button = [...document.querySelectorAll('.room-panel button')].find(
-      (candidate) => candidate.textContent?.includes('Đóng'),
-    );
-    if (button instanceof HTMLButtonElement) {
-      button.click();
-    }
-  });
-  await page.waitForFunction(() => document.querySelector('.tenant-panel') !== null, undefined, {
-    timeout: 15_000,
-  });
+  // Build room 3: capacity 4, need 900 Cash. Close Room Detail with a real
+  // click; the tenant panel (which holds the build strip) then takes over.
+  await panel.getByRole('button', { name: 'Đóng' }).click();
+  await expect(page.locator('.tenant-panel')).toBeVisible();
+
+  // Top up Cash with the DEV hook (the earn time is not what this test checks).
   await page.evaluate(() => {
     const hooks = (window as unknown as { __bht?: { grantCash: (n: number) => void } }).__bht;
     hooks?.grantCash(900);
   });
-  await page.waitForFunction(
-    () =>
-      [...document.querySelectorAll('.build-strip button')].some(
-        (candidate) =>
-          candidate.textContent?.includes('Xây phòng 3') &&
-          !candidate.hasAttribute('disabled'),
-      ),
-    undefined,
-    { timeout: 15_000 },
-  );
-  await page.evaluate(() => {
-    const button = [...document.querySelectorAll('.build-strip button')].find(
-      (candidate) => candidate.textContent?.includes('Xây phòng 3'),
-    );
-    if (button instanceof HTMLButtonElement) {
-      button.click();
-    }
-  });
-  await page.waitForFunction(
-    () => document.body.innerText.includes('Nhiệm vụ 4'),
-    undefined,
-    { timeout: 15_000 },
-  );
+  const buildRoom3 = page.locator('.build-strip').getByRole('button', { name: /Xây phòng 3/ });
+  await expect(buildRoom3).toBeEnabled();
+  await buildRoom3.click();
+  await expect(page.getByText('Nhiệm vụ 4')).toBeVisible({ timeout: 15_000 });
 });
 
 test('5-6. forced event triggers the dialog and resolves deterministically', async ({ page }) => {
@@ -240,12 +217,63 @@ test('11. corrupt save shows recoverable error, record preserved until reset', a
   await expect(errorBox).toBeVisible({ timeout: 15_000 });
 
   // Explicit reset starts a fresh game.
+  // BootErrorScreen asks for confirmation before wiping the save.
+  page.once('dialog', (dialog) => dialog.accept());
   await errorBox.getByRole('button', { name: 'Xoá save và chơi từ đầu' }).click();
   await expect(page.getByText('Nhiệm vụ 1')).toBeVisible({ timeout: 15_000 });
   const state = (await productionState(page)) as {
     player?: { cashMinorUnits: number };
   };
   expect(state.player?.cashMinorUnits).toBe(100_000);
+});
+
+test('camera: left drag pans without selecting, right drag yaws, reset returns default', async ({ page }) => {
+  await page.getByRole('button', { name: /Nhận vào Phòng/ }).first().click();
+  await page.waitForTimeout(800);
+  const canvas = page.locator('canvas');
+  const box = await canvas.boundingBox();
+  const cx = (box!.x + box!.width / 2);
+  const cy = (box!.y + box!.height / 2);
+  const viewState = () =>
+    page.evaluate(
+      () =>
+        (window as unknown as { __bht?: { viewState: () => { panX: number; panY: number; yawRad: number } | null } }).__bht?.viewState() ?? null,
+    );
+
+  // Left drag: pan (the drag threshold prevents selection).
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx + 80, cy + 40, { steps: 5 });
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  expect(await page.locator('.room-panel').count()).toBe(0);
+  const afterPan = await viewState();
+  expect(afterPan).not.toBeNull();
+
+  // Right drag: yaw changes, no room panel opens.
+  await page.mouse.move(cx, cy);
+  await page.mouse.down({ button: 'right' });
+  await page.mouse.move(cx + 120, cy, { steps: 5 });
+  await page.mouse.up({ button: 'right' });
+  await page.waitForTimeout(600);
+  expect(await page.locator('.room-panel').count()).toBe(0);
+  const afterYaw = await viewState();
+  expect(Math.abs((afterYaw?.yawRad ?? 0))).toBeGreaterThan(0.2);
+
+  // Reset view returns the authored default framing (evaluate-click: locator
+  // actionability stalls on this SPA — see test-1 note).
+  await page.evaluate(() => {
+    (document.querySelector('.hud-reset-view') as HTMLButtonElement | null)?.click();
+  });
+  await page.waitForTimeout(500);
+  const afterReset = await viewState();
+  expect(afterReset).toMatchObject({ panX: 0, panY: 0, yawRad: 0 });
+
+  // Selection keeps working at the default view after all the camera noise.
+  await page.mouse.move(cx - 24, cy + 36);
+  await page.mouse.click(cx - 24, cy + 36);
+  await page.waitForTimeout(600);
+  expect(await page.locator('.room-panel').count()).toBe(1);
 });
 
 test('10. congratulation screen appears when the mission chain is complete', async ({ page }) => {

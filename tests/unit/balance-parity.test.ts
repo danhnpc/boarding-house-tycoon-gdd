@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BUILD_COST_MINOR,
   EXPANSION_1,
+  EVENT_COST_MINOR,
   EXPANSION_2,
   INITIAL_CAPACITY,
   MAX_COMBINED_INCOME_REDUCTION,
@@ -65,12 +66,21 @@ describe('GDD parity', () => {
     });
   });
 
+  it('event choice costs match GDD 6.4 (120 / 100 / 150 / 80 Cash)', () => {
+    expect(EVENT_COST_MINOR).toEqual({
+      'utility-outage.pay': 12_000,
+      'hallway-clutter.hire': 10_000,
+      'water-tap.repair': 15_000,
+      'noise-complaint.mediator': 8_000,
+    });
+  });
+
   it('income reduction cap matches GDD 8.2', () => {
     expect(MAX_COMBINED_INCOME_REDUCTION).toBe(0.25);
   });
 
   it('save schema version matches config', () => {
-    expect(SCHEMA_VERSION).toBe(2);
-    expect(SAVE_VERSION).toBe(2);
+    expect(SCHEMA_VERSION).toBe(3);
+    expect(SAVE_VERSION).toBe(3);
   });
 });

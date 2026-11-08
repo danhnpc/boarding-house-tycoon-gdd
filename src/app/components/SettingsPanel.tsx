@@ -7,6 +7,8 @@ import {
 } from '../settings-state';
 import { resetOnboardingState } from '../onboarding-state';
 import { t } from '../i18n';
+import { gameApp } from '../game-bootstrap';
+import { installLifecycleFlush, removeLifecycleFlush } from '../../platform/lifecycle';
 
 const adapter = new IndexedDbSaveAdapter();
 
@@ -93,10 +95,22 @@ export function SettingsPanel() {
           if (!confirmed) {
             return;
           }
-          void adapter.clear().then(() => {
-            resetOnboardingState();
-            window.location.reload();
-          });
+          // Stop the live game first so no tick or autosave writes after the clear.
+          gameApp.stopTimers();
+          removeLifecycleFlush(window);
+          void gameApp
+            .drainSaves()
+            .then(() => adapter.clear())
+            .then(() => {
+              resetOnboardingState();
+              window.location.reload();
+            })
+            .catch(() => {
+              // Clear failed: the old save is still there, so resume the game.
+              installLifecycleFlush(gameApp, window);
+              gameApp.startTimers();
+              window.alert('Không thể xoá save lúc này. Tiến trình vẫn được giữ nguyên.');
+            });
         }}
       >
         Xoá save game

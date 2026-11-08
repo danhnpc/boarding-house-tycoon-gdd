@@ -90,6 +90,8 @@ export interface TimeState {
   lastCheckpointAt: number;
   /** Fractional minor units carried between accrual ticks. */
   incomeRemainderMinorUnits: number;
+  /** Fractional gross (lifetime-income) units carried between accrual ticks. */
+  grossRemainderMinorUnits: number;
   /** Accumulated foreground ("online") time in ms (GDD 8.1). */
   onlineMs: number;
 }

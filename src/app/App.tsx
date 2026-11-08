@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { bootPromise, gameApp } from './game-bootstrap';
+import { useEffect, useRef } from 'react';
+import { bootPromise, gameApp, wireViewProbe } from './game-bootstrap';
 import { BootFailure } from '../application/boot-failure';
 import { createGame } from '../game/bootstrap/createGame';
 import { netRentPerGameDayMinor } from '../domain/economy/rent';
@@ -21,14 +21,10 @@ export function App() {
   const hostRef = useRef<HTMLDivElement>(null);
   const gameState = useGameStore((s) => s.gameState);
   const selectedRoomId = useUiStore((s) => s.selectedRoomId);
-  const [bootStarted, setBootStarted] = useState(false);
-
+  /** Live game handle for the one-shot reset-view path (React owns the button). */
+  const gameHandleRef = useRef<{ resetView: () => void } | null>(null);
   // Boot once; StrictMode remounts reuse the module-level bootPromise.
   useEffect(() => {
-    if (bootStarted) {
-      return;
-    }
-    setBootStarted(true);
     void bootPromise
       .then((boot) => {
         if (boot.offline !== null) {
@@ -50,11 +46,16 @@ export function App() {
           .getState()
           .setBootError('corrupt', bootFailed instanceof Error ? bootFailed.message : String(bootFailed));
       });
+  }, []);
+
+  // Lifecycle flush is its own effect: it must stay installed for the whole
+  // session, not be torn down right after boot.
+  useEffect(() => {
     installLifecycleFlush(gameApp, window);
     return () => {
       removeLifecycleFlush(window);
     };
-  }, [bootStarted]);
+  }, []);
 
   // StrictMode intentional: it mounts, cleans up and remounts this effect,
   // which is exactly the duplicate-instance risk the spike disproved.
@@ -64,6 +65,9 @@ export function App() {
       return undefined;
     }
     const handle = createGame(host);
+    // Dev/e2e probe: read the presentation view from the live scene.
+    wireViewProbe(handle.viewSnapshot);
+    gameHandleRef.current = handle;
     // State flows one-way into the scene; the subscriptions live in this
     // effect's closure and are removed in cleanup (react-phaser-bridge
     // rules 7 and 8). A destroyed game's forwarding is skipped.
@@ -74,12 +78,13 @@ export function App() {
     });
     const forwardSelection = useUiStore.subscribe((s) => {
       if (handle.game.isRunning) {
-        handle.forwardSelection?.(s.selectedRoomId);
+        handle.forwardSelection(s.selectedRoomId);
       }
     });
     return () => {
       forwardStore();
       forwardSelection();
+      gameHandleRef.current = null;
       handle.destroy();
     };
   }, []);
@@ -101,11 +106,22 @@ export function App() {
             ? t('hud.netIncome', { amount: formatCash(netIncomeMinor) })
             : t('hud.loading')}
         </span>
+        <button
+          type="button"
+          className="hud-reset-view"
+          aria-label={t('view.reset')}
+          onClick={() => gameHandleRef.current?.resetView()}
+        >
+          ⟲
+        </button>
       </header>
       {gameState !== null ? (
         <div className="media-strip">
           <OfflineToast />
           <MissionCard />
+          {/* Top strip, not the bottom sheet: the room and tenant panels use the
+              bottom edge for their actions and must never be covered by the tour. */}
+          <OnboardingOverlay />
         </div>
       ) : null}
       {gameState !== null && selectedRoomId !== null ? (
@@ -114,7 +130,6 @@ export function App() {
       {gameState !== null && selectedRoomId === null ? <TenantPanel /> : null}
       <EventDialog />
       <BootErrorScreen />
-      <OnboardingOverlay />
       <CongratulationScreen />
       <SettingsPanel />
     </div>

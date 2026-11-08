@@ -51,6 +51,40 @@ describe('acceptCandidate', () => {
     expect(result).toMatchObject({ ok: false, reason: 'ROOM_NOT_VACANT' });
   });
 
+  it('a reused candidate id does not collide with a current tenant (queue empties, id is reissued)', () => {
+    // tenant-candidate-1 already lives in room-1; a new candidate-1 arrives after the queue emptied.
+    const state: GameState = {
+      ...initialFrozenState(),
+      tenants: [{ tenantId: 'tenant-candidate-1', archetype: 'student' }],
+      building: {
+        roomCapacity: 4,
+        rooms: [
+          { roomId: 'room-1', level: L1, tenantId: 'tenant-candidate-1' },
+          { roomId: 'room-2', level: L1, tenantId: null },
+        ],
+      },
+      candidates: [{ candidateId: 'candidate-1', archetype: 'student' }],
+    };
+    const accepted = acceptCandidate(state, 'candidate-1', 'room-2');
+    if (!accepted.ok) throw new Error(accepted.reason);
+    const newTenantId = accepted.state.building.rooms.find((r) => r.roomId === 'room-2')?.tenantId;
+    expect(newTenantId).toBeTruthy();
+    expect(newTenantId).not.toBe('tenant-candidate-1');
+    expect(accepted.state.tenants.map((t) => t.tenantId)).toEqual([
+      'tenant-candidate-1',
+      newTenantId,
+    ]);
+    expect(new Set(accepted.state.tenants.map((t) => t.tenantId)).size).toBe(2);
+
+    // Moving out the new tenant must leave the original tenant in place.
+    const movedOut = moveOutTenant(accepted.state, 'room-2');
+    if (!movedOut.ok) throw new Error(movedOut.reason);
+    expect(movedOut.state.building.rooms.find((r) => r.roomId === 'room-1')?.tenantId).toBe(
+      'tenant-candidate-1',
+    );
+    expect(movedOut.state.tenants).toEqual([{ tenantId: 'tenant-candidate-1', archetype: 'student' }]);
+  });
+
   it('unknown candidate or room fail cleanly', () => {
     expect(acceptCandidate(initialFrozenState(), 'candidate-9', 'room-2')).toMatchObject({
       ok: false,

@@ -75,7 +75,8 @@ describe('event triggering (GDD 6.2–6.3)', () => {
     const active = fixture({
       events: { ...initialFrozenState().events, activeEventId: 'hallway-clutter' },
     });
-    expect(maybeTriggerEvent(active, createSeededRng(3)).triggered).toBe(false);
+    // rng 0 always passes the 25% base roll, so only the active-event gate can block.
+    expect(maybeTriggerEvent(active, { next: () => 0 }).triggered).toBe(false);
   });
 
   it('no trigger while the global cooldown is running', () => {
@@ -85,7 +86,7 @@ describe('event triggering (GDD 6.2–6.3)', () => {
         globalCooldownRemainingOnlineMs: 60_000,
       },
     });
-    expect(maybeTriggerEvent(cooling, createSeededRng(3)).triggered).toBe(false);
+    expect(maybeTriggerEvent(cooling, { next: () => 0 }).triggered).toBe(false);
   });
 
   it('rolling 60-online-minute cap stops the 4th event', () => {
@@ -98,9 +99,14 @@ describe('event triggering (GDD 6.2–6.3)', () => {
           20 * 60_000,
         ],
       },
-      time: { lastCheckpointAt: 0, incomeRemainderMinorUnits: 0, onlineMs: 30 * 60_000 },
+      time: {
+        lastCheckpointAt: 0,
+        incomeRemainderMinorUnits: 0,
+        grossRemainderMinorUnits: 0,
+        onlineMs: 30 * 60_000,
+      },
     });
-    expect(maybeTriggerEvent(capped, createSeededRng(3)).triggered).toBe(false);
+    expect(maybeTriggerEvent(capped, { next: () => 0 }).triggered).toBe(false);
   });
 
   it('utility outage needs at least 2 occupied rooms', () => {

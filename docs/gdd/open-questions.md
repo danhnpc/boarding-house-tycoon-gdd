@@ -166,6 +166,7 @@ Mức ưu tiên:
 ### E4. Asset manifest
 - **Vấn đề:** Chưa có danh sách key của asset để Phaser load.
 - **Đề xuất mặc định:** Tạo một file manifest trong quá trình Phase 2, không cần chốt bây giờ.
+- **Trạng thái:** Đã tạo tại `src/config/assets.ts` với 12 key ổn định, tất cả đều là placeholder. Anchor và scale của asset sản xuất vẫn chưa chốt.
 
 ---
 

@@ -7,6 +7,8 @@ import type { GameApp } from '../application/game-app';
 let listeners: Array<[string, EventListener]> = [];
 
 export function installLifecycleFlush(gameApp: GameApp, win: Window): void {
+  // Idempotent: drop any previously installed listeners before adding new ones.
+  removeLifecycleFlush(win);
   const flush = () => {
     void gameApp.saveNow();
   };

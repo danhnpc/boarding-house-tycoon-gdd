@@ -6,7 +6,7 @@
 // caught up through the capped offline integration on the next tick.
 
 import { buildRoom, upgradeRoom } from '../domain/building/rooms';
-import { accrueIncome } from '../domain/economy/rent';
+import { accrueIncome, applyIntegration } from '../domain/economy/rent';
 import { integrateOffline } from '../domain/economy/offline';
 import { evaluateMissions } from '../domain/mission/missions';
 import { acceptCandidate, moveOutTenant, rejectCandidate } from '../domain/tenant/candidates';
@@ -61,6 +61,10 @@ export class GameApp {
   private autosaveTimer: ReturnType<typeof setInterval> | null = null;
   private stateListener: ((state: GameState) => void) | null = null;
   private tickListener: ((notice: TickNotice) => void) | null = null;
+  /** False after a hidden tick, so the first visible tick credits via the offline path. */
+  private lastTickWasForeground = true;
+  /** Serializes saves so an older snapshot can never overwrite a newer one. */
+  private saveChain: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly time: TimeProvider,
@@ -111,24 +115,12 @@ export class GameApp {
     // Resume: credit offline income once and move the checkpoint in the same
     // updated snapshot, persisted before anything else runs (ADR 0002).
     const resumed = outcome.state;
-    const offline = integrateOffline(resumed, this.time.now());
-    this.state = {
-      ...resumed,
-      player: {
-        cashMinorUnits: resumed.player.cashMinorUnits + offline.creditedMinorUnits,
-        lifetimeGrossIncomeMinorUnits:
-          resumed.player.lifetimeGrossIncomeMinorUnits +
-          Math.floor(offline.grossFloatMinorUnits),
-      },
-      time: {
-        // Checkpoint always advances to the wall-clock resume time: the excess
-        // beyond the 8-hour cap is lost per interval, never carried over
-        // (GDD 8.1, open-questions B3 default).
-        ...resumed.time,
-        lastCheckpointAt: this.time.now(),
-        incomeRemainderMinorUnits: offline.remainderMinorUnits,
-      },
-    };
+    const now = this.time.now();
+    const offline = integrateOffline(resumed, now);
+    // Checkpoint always advances to the wall-clock resume time: the excess
+    // beyond the 8-hour cap is lost per interval, never carried over
+    // (GDD 8.1, open-questions B3 default).
+    this.state = applyIntegration(resumed, offline, now);
     await this.saves.saveState(this.state);
     this.publish();
     this.startTimers();
@@ -201,8 +193,12 @@ export class GameApp {
     }
     // Backgrounded: online-only rules pause; nothing accrues here (GDD 8.1).
     if (!this.online.isForeground()) {
+      this.lastTickWasForeground = false;
       return;
     }
+    const resumedFromHidden = !this.lastTickWasForeground;
+    this.lastTickWasForeground = true;
+
     const now = this.time.now();
     const state = this.state;
     const gapMs = now - state.time.lastCheckpointAt;
@@ -216,31 +212,18 @@ export class GameApp {
       void this.saveNow();
       return;
     }
-    let notice: TickNotice = {
+    const notice: TickNotice = {
       nowMs: now,
       offlineCreditedMinor: 0,
       candidateAdded: false,
       eventTriggered: false,
     };
 
-    if (gapMs >= FOREGROUND_GAP_OFFLINE_THRESHOLD_MS) {
-      // Long stable-looking foreground gap (machine slept while visible):
+    if (resumedFromHidden || gapMs >= FOREGROUND_GAP_OFFLINE_THRESHOLD_MS) {
+      // Hidden time, or a long foreground gap (machine slept while visible):
       // capped offline catch-up; online timers do not advance.
       const off = integrateOffline(state, now);
-      this.state = {
-        ...state,
-        player: {
-          ...state.player,
-          cashMinorUnits: state.player.cashMinorUnits + off.creditedMinorUnits,
-          lifetimeGrossIncomeMinorUnits:
-            state.player.lifetimeGrossIncomeMinorUnits + Math.floor(off.grossFloatMinorUnits),
-        },
-        time: {
-          ...state.time,
-          lastCheckpointAt: now,
-          incomeRemainderMinorUnits: off.remainderMinorUnits,
-        },
-      };
+      this.state = applyIntegration(state, off, now);
       notice.offlineCreditedMinor = off.creditedMinorUnits;
       this.finishTick(notice, true);
       return;
@@ -252,11 +235,11 @@ export class GameApp {
       return;
     }
     let next = accrued.state;
-    const prevOnlineMs = next.time.onlineMs;
+    const onlineNow = next.time.onlineMs + gapMs;
     next = {
       ...next,
-      time: { ...next.time, onlineMs: prevOnlineMs + gapMs },
-      events: decrementCooldowns(next.events, gapMs, next.time.onlineMs),
+      time: { ...next.time, onlineMs: onlineNow },
+      events: decrementCooldowns(next.events, gapMs, onlineNow),
     };
 
     // 5-active-minute cadence (GDD 5.3, 6.2): candidate check then event roll.
@@ -282,12 +265,28 @@ export class GameApp {
     this.tickListener?.(notice);
   }
 
-  async saveNow(): Promise<void> {
+  saveNow(): Promise<void> {
     if (this.state === null) {
-      return;
+      return Promise.resolve();
     }
     this.dirty = false;
-    await this.saves.saveState(this.state);
+    const snapshot = this.state;
+    const run = this.saveChain.then(() => this.saves.saveState(snapshot));
+    // A failed write re-arms the dirty flag so autosave retries it; the chain
+    // itself keeps going so later saves still run in order.
+    this.saveChain = run.catch(() => {
+      this.dirty = true;
+    });
+    // Fire-and-forget callers (autosave, command saves) do not observe `run`;
+    // this handler keeps a failed write from surfacing as an unhandled
+    // rejection. Awaiting callers still receive the rejection.
+    run.catch(() => undefined);
+    return run;
+  }
+
+  /** Resolves once every queued save has settled; used before a destructive reset. */
+  drainSaves(): Promise<void> {
+    return this.saveChain;
   }
 
   /**

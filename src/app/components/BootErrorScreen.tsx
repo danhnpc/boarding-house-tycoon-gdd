@@ -37,10 +37,18 @@ export function BootErrorScreen() {
             className="danger"
             onClick={() => {
               // Explicit player choice only (skill anti-pattern: silent reset).
-              void adapter.clear().then(() => {
-                resetOnboardingState();
-                window.location.reload();
-              });
+              if (!window.confirm('Xoá toàn bộ tiến trình trên thiết bị này? Hành động không thể hoàn tác.')) {
+                return;
+              }
+              void adapter
+                .clear()
+                .then(() => {
+                  resetOnboardingState();
+                  window.location.reload();
+                })
+                .catch(() => {
+                  window.alert('Không thể xoá save lúc này. Bản lưu gốc vẫn được giữ nguyên.');
+                });
             }}
           >
             Xoá save và chơi từ đầu

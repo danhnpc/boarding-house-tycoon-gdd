@@ -20,6 +20,14 @@ export const gameApp = new GameApp(
 );
 
 let zonesProbe: (() => string) | null = null;
+let viewProbe: (() => { panX: number; panY: number; yawRad: number } | null) | null = null;
+
+/** React host wires the live scene's view snapshot for dev/e2e reads. */
+export function wireViewProbe(
+  probe: () => { panX: number; panY: number; yawRad: number } | null,
+): void {
+  viewProbe = probe;
+}
 
 // The canonical state flows into the store on every discrete change; React
 // and Phaser both subscribe to the store (react-phaser-bridge rule 8).
@@ -83,6 +91,10 @@ if (import.meta.env.DEV) {
     zones: () => zonesProbe?.() ?? 'not-wired',
     setZoneProbe: (probe: () => string) => {
       zonesProbe = probe;
+    },
+    viewState: () => viewProbe?.() ?? null,
+    setViewProbe: (probe: () => { panX: number; panY: number; yawRad: number } | null) => {
+      viewProbe = probe;
     },
     app: gameApp,
   };

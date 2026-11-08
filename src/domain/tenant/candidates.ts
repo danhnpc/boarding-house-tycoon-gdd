@@ -17,6 +17,17 @@ function findRoom(state: GameState, roomId: RoomId) {
   return state.building.rooms.find((room) => room.roomId === roomId);
 }
 
+/** `tenant-<candidateId>`, with a numeric suffix if a current tenant already holds it. */
+function uniqueTenantId(state: GameState, candidateId: CandidateId): TenantId {
+  const base = `tenant-${candidateId}`;
+  const taken = new Set(state.tenants.map((t) => t.tenantId));
+  let id: TenantId = base;
+  for (let n = 2; taken.has(id); n++) {
+    id = `${base}-${n}`;
+  }
+  return id;
+}
+
 export function roomRentPerGameDayMinor(state: GameState, roomId: RoomId): number | null {
   const room = findRoom(state, roomId);
   return room === undefined ? null : RENT_PER_GAME_DAY_MINOR[room.level];
@@ -47,8 +58,9 @@ export function acceptCandidate(
     return fail('BUDGET_TOO_LOW');
   }
 
-  // Deterministic, collision-free tenant ID derived from the candidate.
-  const tenantId: TenantId = `tenant-${candidateId}`;
+  // Candidate IDs are reused once the queue empties (generation derives them
+  // from the queue max), so the tenant ID must be unique among current tenants.
+  const tenantId = uniqueTenantId(state, candidateId);
   const next: GameState = {
     ...state,
     tenants: [

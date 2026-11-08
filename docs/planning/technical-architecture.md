@@ -247,7 +247,9 @@ interface GameState {
   progression: ProgressionState;
   time: {
     lastCheckpointAt: number;
-    incomeRemainderMinorUnits: number;
+    incomeRemainderMinorUnits: number;   // net-income fraction carried between accruals
+    grossRemainderMinorUnits: number;    // gross fraction carried, for lifetime gross
+    onlineMs: number;                    // accumulated online time (cooldowns, event checks)
   };
 }
 ```
@@ -512,6 +514,23 @@ Local save is sufficient because the MVP is single-player and does not require a
 - Migrations must be deterministic and unit tested with representative old save fixtures.
 - Do not rely on renaming a TypeScript interface as a migration.
 - Keep a small number of previous schema migrations; document when old save versions are no longer supported.
+- Migrations are sequential (`vN -> vN+1`, each stamping `schemaVersion = N+1`), so any old save reaches the current shape by running the chain. A save with a higher `schemaVersion` is rejected, never migrated backwards.
+
+Schema history:
+
+| Version | Change | Migration |
+|---|---|---|
+| 1 | Initial local save | — |
+| 2 | Event system and online clock (`events`, `time.onlineMs`) | stamps `schemaVersion: 2`, adds event and online-clock defaults |
+| 3 | Gross remainder carried between accruals (`time.grossRemainderMinorUnits`) | stamps `schemaVersion: 3`, sets the remainder to `0` |
+
+### 10.4 Time integration rules
+
+- Foreground ticks run once per second. A gap of 30 seconds or more, or the first visible tick after the page was hidden, is treated as an offline resume: the elapsed time is integrated with the offline cap (8 hours) and the online timers do not advance.
+- Online timers (`onlineMs`, cooldowns, the 5-minute candidate and event check) advance only on the online path.
+- Income is credited through one shared helper. Net and gross fractions are carried in state, so no income is lost to rounding.
+- Net rent uses the reduction in effect at each segment boundary, capped at 25%. Modifiers that expire mid-interval split the interval at their expiry.
+- Saves are written in the order they were requested, so a later save can never be overwritten by an earlier one.
 
 ### 10.4 Future backend seam
 
@@ -678,7 +697,7 @@ Open items for Phase 2 (not yet decided or produced):
 - **Vietnamese copy for HUD, panels, mission card, onboarding** (GDD 9.1, 9.2). Owner: product owner, per GDD 9.1. Key skeleton created at `src/locales/vi.json` with empty values; the copy itself is not written. UI code references keys from this file from the first build. Values may use `{name}` placeholders for amounts and levels.
 - **Tenant display names** (Vietnamese, GDD 9.1). No name list exists. Owner: product owner. Decide whether names are a fixed list or generated per tenant.
 - **Room layouts for 2 and 4 rooms** (GDD 10, Visual Direction checklist). Art lead designs; product owner approves before asset production. Art lead is not yet assigned.
-- **Asset manifest** (open-questions E4). Not created. Create in Phase 2 with stable keys, anchors, and scale per asset (Visual Direction section 13).
+- **Asset manifest** (open-questions E4). Created at `src/config/assets.ts`: 12 stable keys, all marked `placeholder: true`. Production art still needs anchors and scale per asset (Visual Direction section 13) and replaces a placeholder by its key.
 - **Placeholder-art policy (decided).** Use placeholder shapes/colors with stable asset keys until production art is approved. Recorded in GDD section 10. Placeholder assets must be labeled and do not pass Visual Direction section 13.
 - **Phase 0 carry-over:** minimum browser versions and real-device tests on Android Chrome and iOS Safari (GDD 9, ADR 0003).
 
