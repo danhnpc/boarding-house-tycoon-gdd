@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { bootPromise, gameApp } from './game-bootstrap';
 import { BootFailure } from '../application/boot-failure';
 import { createGame } from '../game/bootstrap/createGame';
@@ -21,14 +21,8 @@ export function App() {
   const hostRef = useRef<HTMLDivElement>(null);
   const gameState = useGameStore((s) => s.gameState);
   const selectedRoomId = useUiStore((s) => s.selectedRoomId);
-  const [bootStarted, setBootStarted] = useState(false);
-
   // Boot once; StrictMode remounts reuse the module-level bootPromise.
   useEffect(() => {
-    if (bootStarted) {
-      return;
-    }
-    setBootStarted(true);
     void bootPromise
       .then((boot) => {
         if (boot.offline !== null) {
@@ -50,11 +44,16 @@ export function App() {
           .getState()
           .setBootError('corrupt', bootFailed instanceof Error ? bootFailed.message : String(bootFailed));
       });
+  }, []);
+
+  // Lifecycle flush is its own effect: it must stay installed for the whole
+  // session, not be torn down right after boot.
+  useEffect(() => {
     installLifecycleFlush(gameApp, window);
     return () => {
       removeLifecycleFlush(window);
     };
-  }, [bootStarted]);
+  }, []);
 
   // StrictMode intentional: it mounts, cleans up and remounts this effect,
   // which is exactly the duplicate-instance risk the spike disproved.

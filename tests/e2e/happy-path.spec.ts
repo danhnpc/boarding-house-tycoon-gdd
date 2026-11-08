@@ -217,6 +217,8 @@ test('11. corrupt save shows recoverable error, record preserved until reset', a
   await expect(errorBox).toBeVisible({ timeout: 15_000 });
 
   // Explicit reset starts a fresh game.
+  // BootErrorScreen asks for confirmation before wiping the save.
+  page.once('dialog', (dialog) => dialog.accept());
   await errorBox.getByRole('button', { name: 'Xoá save và chơi từ đầu' }).click();
   await expect(page.getByText('Nhiệm vụ 1')).toBeVisible({ timeout: 15_000 });
   const state = (await productionState(page)) as {

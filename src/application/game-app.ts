@@ -284,6 +284,11 @@ export class GameApp {
     return run;
   }
 
+  /** Resolves once every queued save has settled; used before a destructive reset. */
+  drainSaves(): Promise<void> {
+    return this.saveChain;
+  }
+
   /**
    * DEV/TEST only seam: route an external state patch through the standard
    * mission evaluation + publish + save pipeline. Never used by gameplay code;

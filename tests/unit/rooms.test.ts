@@ -114,4 +114,33 @@ describe('upgradeRoom', () => {
     const result = upgradeRoom(stateWithCash(1_000_000, 4), 'room-9');
     expect(result).toMatchObject({ ok: false, reason: 'ROOM_NOT_FOUND' });
   });
+
+  it('a Level 3 upgrade that completes Expansion 2 persists the unlock (GDD 4.1)', () => {
+    // Expansion 2 (GDD 4.1): 4 occupied rooms and 2 Level 2 rooms. Rooms 1–2 are
+    // already Level 2; upgrading room-3 to Level 2 completes it. The unlock must
+    // be written into progression, not just derived.
+    const state: GameState = {
+      ...stateWithCash(1_000_000, 4),
+      progression: { roomCapacity: 4, unlockedMaxLevel: L2 },
+      tenants: [
+        { tenantId: 'tenant-1', archetype: 'office_worker' as const },
+        { tenantId: 'tenant-2', archetype: 'office_worker' as const },
+        { tenantId: 'tenant-3', archetype: 'office_worker' as const },
+        { tenantId: 'tenant-4', archetype: 'office_worker' as const },
+      ],
+      building: {
+        roomCapacity: 4,
+        rooms: [
+          { roomId: 'room-1', level: L2, tenantId: 'tenant-1' },
+          { roomId: 'room-2', level: L2, tenantId: 'tenant-2' },
+          { roomId: 'room-3', level: L1, tenantId: 'tenant-3' },
+          { roomId: 'room-4', level: L1, tenantId: 'tenant-4' },
+        ],
+      },
+    };
+    const result = upgradeRoom(state, 'room-3');
+    if (!result.ok) throw new Error(result.reason);
+    expect(result.state.progression.unlockedMaxLevel).toBe(3);
+    expect(result.state.progression.roomCapacity).toBe(6);
+  });
 });

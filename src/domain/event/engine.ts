@@ -4,6 +4,7 @@
 
 import {
   EVENT_BASE_CHANCE,
+  EVENT_COST_MINOR,
   EVENT_GLOBAL_COOLDOWN_ONLINE_MS,
   EVENT_MAX_PER_ROLLING_WINDOW,
   EVENT_PER_EVENT_COOLDOWN_ONLINE_MS,
@@ -188,10 +189,11 @@ export function resolveEventChoiceId(
     case 'utility-outage': {
       // A: pay 120 → no modifier; B: 10% of gross for 1 Game Day.
       if (choiceId === 'pay') {
-        if (state.player.cashMinorUnits < 12_000) return { ok: false, reason: 'INSUFFICIENT_FUNDS' };
+        const cost = EVENT_COST_MINOR['utility-outage.pay'];
+        if (state.player.cashMinorUnits < cost) return { ok: false, reason: 'INSUFFICIENT_FUNDS' };
         resolved = {
           ...resolved,
-          player: { ...resolved.player, cashMinorUnits: resolved.player.cashMinorUnits - 12_000 },
+          player: { ...resolved.player, cashMinorUnits: resolved.player.cashMinorUnits - cost },
         };
       } else if (choiceId === 'wait') {
         resolved = {
@@ -210,10 +212,11 @@ export function resolveEventChoiceId(
     }
     case 'water-tap': {
       if (choiceId === 'repair') {
-        if (state.player.cashMinorUnits < 15_000) return { ok: false, reason: 'INSUFFICIENT_FUNDS' };
+        const cost = EVENT_COST_MINOR['water-tap.repair'];
+        if (state.player.cashMinorUnits < cost) return { ok: false, reason: 'INSUFFICIENT_FUNDS' };
         resolved = {
           ...resolved,
-          player: { ...resolved.player, cashMinorUnits: resolved.player.cashMinorUnits - 15_000 },
+          player: { ...resolved.player, cashMinorUnits: resolved.player.cashMinorUnits - cost },
         };
       } else if (choiceId === 'delay') {
         resolved = {
@@ -234,10 +237,11 @@ export function resolveEventChoiceId(
       if (choiceId === 'warn') {
         // Free; closes with no penalty and no extra cooldown (open-questions A6).
       } else if (choiceId === 'hire') {
-        if (state.player.cashMinorUnits < 10_000) return { ok: false, reason: 'INSUFFICIENT_FUNDS' };
+        const cost = EVENT_COST_MINOR['hallway-clutter.hire'];
+        if (state.player.cashMinorUnits < cost) return { ok: false, reason: 'INSUFFICIENT_FUNDS' };
         resolved = {
           ...resolved,
-          player: { ...resolved.player, cashMinorUnits: resolved.player.cashMinorUnits - 10_000 },
+          player: { ...resolved.player, cashMinorUnits: resolved.player.cashMinorUnits - cost },
         };
         setEvents({
           suppressedOnlineMs: {
@@ -263,10 +267,11 @@ export function resolveEventChoiceId(
           },
         });
       } else if (choiceId === 'mediator') {
-        if (state.player.cashMinorUnits < 8_000) return { ok: false, reason: 'INSUFFICIENT_FUNDS' };
+        const cost = EVENT_COST_MINOR['noise-complaint.mediator'];
+        if (state.player.cashMinorUnits < cost) return { ok: false, reason: 'INSUFFICIENT_FUNDS' };
         resolved = {
           ...resolved,
-          player: { ...resolved.player, cashMinorUnits: resolved.player.cashMinorUnits - 8_000 },
+          player: { ...resolved.player, cashMinorUnits: resolved.player.cashMinorUnits - cost },
         };
         setEvents({
           noiseTargetCooldownOnlineMsRecord: {
