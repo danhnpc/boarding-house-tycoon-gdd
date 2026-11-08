@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { bootPromise, gameApp } from './game-bootstrap';
+import { bootPromise, gameApp, wireViewProbe } from './game-bootstrap';
 import { BootFailure } from '../application/boot-failure';
 import { createGame } from '../game/bootstrap/createGame';
 import { netRentPerGameDayMinor } from '../domain/economy/rent';
@@ -21,6 +21,8 @@ export function App() {
   const hostRef = useRef<HTMLDivElement>(null);
   const gameState = useGameStore((s) => s.gameState);
   const selectedRoomId = useUiStore((s) => s.selectedRoomId);
+  /** Live game handle for the one-shot reset-view path (React owns the button). */
+  const gameHandleRef = useRef<{ resetView: () => void } | null>(null);
   // Boot once; StrictMode remounts reuse the module-level bootPromise.
   useEffect(() => {
     void bootPromise
@@ -63,6 +65,9 @@ export function App() {
       return undefined;
     }
     const handle = createGame(host);
+    // Dev/e2e probe: read the presentation view from the live scene.
+    wireViewProbe(handle.viewSnapshot);
+    gameHandleRef.current = handle;
     // State flows one-way into the scene; the subscriptions live in this
     // effect's closure and are removed in cleanup (react-phaser-bridge
     // rules 7 and 8). A destroyed game's forwarding is skipped.
@@ -73,12 +78,13 @@ export function App() {
     });
     const forwardSelection = useUiStore.subscribe((s) => {
       if (handle.game.isRunning) {
-        handle.forwardSelection?.(s.selectedRoomId);
+        handle.forwardSelection(s.selectedRoomId);
       }
     });
     return () => {
       forwardStore();
       forwardSelection();
+      gameHandleRef.current = null;
       handle.destroy();
     };
   }, []);
@@ -100,6 +106,14 @@ export function App() {
             ? t('hud.netIncome', { amount: formatCash(netIncomeMinor) })
             : t('hud.loading')}
         </span>
+        <button
+          type="button"
+          className="hud-reset-view"
+          aria-label={t('view.reset')}
+          onClick={() => gameHandleRef.current?.resetView()}
+        >
+          ⟲
+        </button>
       </header>
       {gameState !== null ? (
         <div className="media-strip">

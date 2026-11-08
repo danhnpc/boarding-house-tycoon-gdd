@@ -72,11 +72,45 @@ export function pointInConvexPolygon(x: number, y: number, polygon: readonly Scr
 }
 
 /** Ground fan is the bottom vertex of the floor diamond — depth anchor (skill rule 2). */
-export function depthFor(grid: GridPos): number {
-  return grid.gridX + grid.gridY;
+export function depthFor(grid: GridPos, center?: ScreenPos, yawRad?: number): number {
+  if (center === undefined || yawRad === undefined || yawRad === 0) {
+    return grid.gridX + grid.gridY;
+  }
+  // Depth under camera yaw: the screen-space y of the rotated ground point
+  // (larger y = closer to the viewer). With yaw = 0 this equals gridX + gridY
+  // up to the constant positive factor TILE_H / 2 — same ordering, so the
+  // legacy identity holds exactly.
+  return rotateAround(project(grid), center, yawRad).y;
 }
 
 export function roomNumber(roomId: string): number | null {
   const match = /^room-(\d+)$/.exec(roomId);
   return match === null ? null : Number.parseInt(match[1], 10);
 }
+
+/** Presentation-only view state (camera view plan §4.1): never in GameState. */
+export interface ViewState {
+  panX: number;
+  panY: number;
+  yawRad: number;
+}
+
+export const NEUTRAL_VIEW: ViewState = { panX: 0, panY: 0, yawRad: 0 };
+
+/** Uniform screen-space rotation around a pivot (camera yaw, plan §4.2). */
+export function rotateAround(point: ScreenPos, center: ScreenPos, yawRad: number): ScreenPos {
+  if (yawRad === 0) {
+    return { x: point.x, y: point.y };
+  }
+  const dx = point.x - center.x;
+  const dy = point.y - center.y;
+  const cos = Math.cos(yawRad);
+  const sin = Math.sin(yawRad);
+  return {
+    x: center.x + dx * cos - dy * sin,
+    y: center.y + dx * sin + dy * cos,
+  };
+}
+
+/** Drag distance beyond which a press becomes a pan instead of a selection. */
+export const DRAG_THRESHOLD_PX = 5;

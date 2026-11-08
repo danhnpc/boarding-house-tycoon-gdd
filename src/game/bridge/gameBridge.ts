@@ -9,7 +9,8 @@ export type GameToUiEvent =
 
 export type UiToGameCommand =
   | { type: 'SELECT_ROOM'; roomId: string }
-  | { type: 'CLEAR_SELECTION' };
+  | { type: 'CLEAR_SELECTION' }
+  | { type: 'RESET_VIEW' };
 
 type GameToUiHandler = (event: GameToUiEvent) => void;
 type UiToGameHandler = (command: UiToGameCommand) => void;

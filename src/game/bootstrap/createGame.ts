@@ -9,6 +9,8 @@ import type { GameState } from '../../domain/types';
 
 export interface GameHandle {
   game: Phaser.Game;
+  viewSnapshot: () => { panX: number; panY: number; yawRad: number } | null;
+  resetView: () => void;
   forwardGameState: (state: GameState) => void;
   forwardSelection: (roomId: string | null) => void;
   destroy: () => void;
@@ -17,7 +19,6 @@ export interface GameHandle {
 export function createGame(host: HTMLElement): GameHandle {
   let lastState: GameState | null = null;
   let lastSelection: string | null = null;
-
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     backgroundColor: '#9ed0b1',
@@ -56,6 +57,10 @@ export function createGame(host: HTMLElement): GameHandle {
 
   return {
     game,
+    viewSnapshot: () => getScene()?.getViewState() ?? null,
+    resetView: () => {
+      getScene()?.resetView();
+    },
     forwardGameState: (state) => {
       lastState = state;
       apply();

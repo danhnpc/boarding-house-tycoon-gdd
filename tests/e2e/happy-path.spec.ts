@@ -227,6 +227,55 @@ test('11. corrupt save shows recoverable error, record preserved until reset', a
   expect(state.player?.cashMinorUnits).toBe(100_000);
 });
 
+test('camera: left drag pans without selecting, right drag yaws, reset returns default', async ({ page }) => {
+  await page.getByRole('button', { name: /Nhận vào Phòng/ }).first().click();
+  await page.waitForTimeout(800);
+  const canvas = page.locator('canvas');
+  const box = await canvas.boundingBox();
+  const cx = (box!.x + box!.width / 2);
+  const cy = (box!.y + box!.height / 2);
+  const viewState = () =>
+    page.evaluate(
+      () =>
+        (window as unknown as { __bht?: { viewState: () => { panX: number; panY: number; yawRad: number } | null } }).__bht?.viewState() ?? null,
+    );
+
+  // Left drag: pan (the drag threshold prevents selection).
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx + 80, cy + 40, { steps: 5 });
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  expect(await page.locator('.room-panel').count()).toBe(0);
+  const afterPan = await viewState();
+  expect(afterPan).not.toBeNull();
+
+  // Right drag: yaw changes, no room panel opens.
+  await page.mouse.move(cx, cy);
+  await page.mouse.down({ button: 'right' });
+  await page.mouse.move(cx + 120, cy, { steps: 5 });
+  await page.mouse.up({ button: 'right' });
+  await page.waitForTimeout(600);
+  expect(await page.locator('.room-panel').count()).toBe(0);
+  const afterYaw = await viewState();
+  expect(Math.abs((afterYaw?.yawRad ?? 0))).toBeGreaterThan(0.2);
+
+  // Reset view returns the authored default framing (evaluate-click: locator
+  // actionability stalls on this SPA — see test-1 note).
+  await page.evaluate(() => {
+    (document.querySelector('.hud-reset-view') as HTMLButtonElement | null)?.click();
+  });
+  await page.waitForTimeout(500);
+  const afterReset = await viewState();
+  expect(afterReset).toMatchObject({ panX: 0, panY: 0, yawRad: 0 });
+
+  // Selection keeps working at the default view after all the camera noise.
+  await page.mouse.move(cx - 24, cy + 36);
+  await page.mouse.click(cx - 24, cy + 36);
+  await page.waitForTimeout(600);
+  expect(await page.locator('.room-panel').count()).toBe(1);
+});
+
 test('10. congratulation screen appears when the mission chain is complete', async ({ page }) => {
   await page.getByRole('button', { name: /Nhận vào Phòng/ }).first().click();
   await page.evaluate(() => {

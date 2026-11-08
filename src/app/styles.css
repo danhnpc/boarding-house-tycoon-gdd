@@ -131,6 +131,16 @@ body,
   pointer-events: none;
 }
 
+.hud-reset-view {
+  font-size: 1rem;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  background: #fffdf6;
+  color: #2e5d34;
+  cursor: pointer;
+}
+
 .settings-gear {
   position: absolute;
   top: calc(0.4rem + env(safe-area-inset-top));

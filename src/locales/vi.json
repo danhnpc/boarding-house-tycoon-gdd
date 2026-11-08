@@ -85,5 +85,6 @@
   "congrats.stat.cash": "Cash hiện tại: {amount}",
   "congrats.stat.lifetimeGross": "Tổng thu nhập gộp: {amount}",
   "congrats.continue": "Tiếp tục chơi tự do",
-  "close": "Đóng"
+  "close": "Đóng",
+  "view.reset": "Đặt lại góc nhìn"
 }
