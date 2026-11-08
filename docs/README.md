@@ -12,6 +12,8 @@ This folder contains the MVP's product, engineering, decision, and art documenta
 | [`decisions/0002-local-first-save.md`](decisions/0002-local-first-save.md) | Rationale, limits, and revisit triggers for local-first save | Future backend design beyond the MVP boundary |
 | [`decisions/0003-web-first-responsive-delivery.md`](decisions/0003-web-first-responsive-delivery.md) | Delivery target: one responsive web build; store wrapper deferred | Gameplay rules and balance |
 | [`art/visual-direction.md`](art/visual-direction.md) | Visual style, consistency rules, asset naming/production checklist | Final production art files or gameplay rules |
+| [`planning/camera-view-plan.md`](planning/camera-view-plan.md) | Camera view plan: pan, yaw, decisions, open questions | Gameplay rules; pitch and zoom (not in scope) |
+| [`implementations/`](implementations/README.md) | Build status per phase and feature: branch, commit, test evidence, open items | Plans and rules (those live in the documents above) |
 
 ## Change-control rules
 
@@ -21,6 +23,7 @@ This folder contains the MVP's product, engineering, decision, and art documenta
 4. Update visual rules and the asset checklist in the Art Direction document.
 5. Keep balance values in one typed runtime configuration source; reconcile that source with the GDD before a release.
 6. Treat files under `art/assets/` as concept references only. Production assets should live in the game's runtime asset directory after approval.
+7. When a phase or feature lands on `main`, update [`implementations/status.md`](implementations/status.md) in the same change. Record the commit, the test result, and the open items.
 
 ## Recommended reading order
 
