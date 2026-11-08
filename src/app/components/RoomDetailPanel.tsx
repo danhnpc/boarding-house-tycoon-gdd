@@ -58,7 +58,18 @@ export function RoomDetailPanel({ roomId }: RoomDetailPanelProps) {
     setErrorReason(result.ok ? null : result.reason);
   };
 
-  const missing = nextLevel !== null && (!unlocked || tenantBlocks);
+  // Why the upgrade is disabled, shown as text so the player is never guessing.
+  // Order matters: a milestone lock hides the other reasons.
+  let blockedReason: string | null = null;
+  if (nextLevel !== null && !upgradeReady) {
+    if (!unlocked) {
+      blockedReason = t('room.lockedMilestone', { level: nextLevel });
+    } else if (tenantBlocks) {
+      blockedReason = t('room.error.TENANT_BUDGET_TOO_LOW');
+    } else {
+      blockedReason = t('room.error.INSUFFICIENT_FUNDS');
+    }
+  }
 
   return (
     <aside className="room-panel" aria-label={t('room.detail')}>
@@ -78,7 +89,6 @@ export function RoomDetailPanel({ roomId }: RoomDetailPanelProps) {
               level: nextLevel,
               amount: formatCash(upgradeCostMinor ?? 0),
             })}
-            {missing ? ' — chưa thể nâng cấp' : ''}
           </button>
         ) : null}
         {tenant ? (
@@ -101,6 +111,7 @@ export function RoomDetailPanel({ roomId }: RoomDetailPanelProps) {
           {t('close')}
         </button>
       </div>
+      {blockedReason !== null ? <p className="panel-hint">{blockedReason}</p> : null}
       {errorReason !== null ? (
         <p className="panel-error">
           {t(`room.error.${errorReason}`) !== `room.error.${errorReason}`

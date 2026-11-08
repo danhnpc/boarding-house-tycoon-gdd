@@ -106,6 +106,9 @@ export function App() {
         <div className="media-strip">
           <OfflineToast />
           <MissionCard />
+          {/* Top strip, not the bottom sheet: the room and tenant panels use the
+              bottom edge for their actions and must never be covered by the tour. */}
+          <OnboardingOverlay />
         </div>
       ) : null}
       {gameState !== null && selectedRoomId !== null ? (
@@ -114,7 +117,6 @@ export function App() {
       {gameState !== null && selectedRoomId === null ? <TenantPanel /> : null}
       <EventDialog />
       <BootErrorScreen />
-      <OnboardingOverlay />
       <CongratulationScreen />
       <SettingsPanel />
     </div>

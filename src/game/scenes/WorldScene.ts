@@ -35,16 +35,20 @@ const v = (x: number, y: number): Phaser.Math.Vector2 => new Phaser.Math.Vector2
 export class WorldScene extends Phaser.Scene {
   private roomGraphics = new Map<string, Phaser.GameObjects.Graphics>();
   private markers = new Map<string, Phaser.GameObjects.Arc>();
-  private roomCenters = new Map<string, { x: number; y: number }>();  /** Selection highlight is visual-only state owned by the scene (skill rule 4). */
+  private roomCenters = new Map<string, { x: number; y: number }>();
+  /** Selection highlight is visual-only state owned by the scene (skill rule 4). */
   private selectedRoomId: string | null = null;
   private lastWorldKey = '';
   private contentCenter = v(0, 0);
+  /** Set on shutdown: forwarded closures from a stopped scene must not write. */
+  private shutDown = false;
 
   constructor() {
     super('WorldScene');
   }
 
   create(): void {
+    this.shutDown = false;
     // Initial framing before any snapshot arrives; the world redraws on the
     // first forwarded store snapshot (within one tick).
     this.centerCameraOnContent();
@@ -52,7 +56,7 @@ export class WorldScene extends Phaser.Scene {
     // pointer handler computes the diamond of each room in its own world
     // coordinates, avoiding per-object hitArea space differences between
     // Phaser versions and rect overlaps of a diamond grid.
-    this.input?.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+    const onPointerDown = (pointer: Phaser.Input.Pointer) => {
       if (this.roomCenters.size === 0 || !this.isLive()) {
         return;
       }
@@ -66,6 +70,13 @@ export class WorldScene extends Phaser.Scene {
           break;
         }
       }
+    };
+    this.input?.on('pointerdown', onPointerDown);
+    // Explicit teardown: a StrictMode remount or a game destroy must not leave
+    // a pointer listener behind, nor let forwarded state write into a dead scene.
+    this.events.once('shutdown', () => {
+      this.shutDown = true;
+      this.input?.off('pointerdown', onPointerDown);
     });
   }
 
@@ -95,7 +106,7 @@ export class WorldScene extends Phaser.Scene {
 
   /** Destroyed scenes keep forwarded closures harmless: guard every write. */
   private isLive(): boolean {
-    return this.scene !== undefined && this.sys !== undefined && this.add !== null;
+    return !this.shutDown && this.sys !== undefined && this.add !== undefined;
   }
 
   private rebuildRooms(state: GameState): void {

@@ -697,7 +697,7 @@ Open items for Phase 2 (not yet decided or produced):
 - **Vietnamese copy for HUD, panels, mission card, onboarding** (GDD 9.1, 9.2). Owner: product owner, per GDD 9.1. Key skeleton created at `src/locales/vi.json` with empty values; the copy itself is not written. UI code references keys from this file from the first build. Values may use `{name}` placeholders for amounts and levels.
 - **Tenant display names** (Vietnamese, GDD 9.1). No name list exists. Owner: product owner. Decide whether names are a fixed list or generated per tenant.
 - **Room layouts for 2 and 4 rooms** (GDD 10, Visual Direction checklist). Art lead designs; product owner approves before asset production. Art lead is not yet assigned.
-- **Asset manifest** (open-questions E4). Not created. Create in Phase 2 with stable keys, anchors, and scale per asset (Visual Direction section 13).
+- **Asset manifest** (open-questions E4). Created at `src/config/assets.ts`: 12 stable keys, all marked `placeholder: true`. Production art still needs anchors and scale per asset (Visual Direction section 13) and replaces a placeholder by its key.
 - **Placeholder-art policy (decided).** Use placeholder shapes/colors with stable asset keys until production art is approved. Recorded in GDD section 10. Placeholder assets must be labeled and do not pass Visual Direction section 13.
 - **Phase 0 carry-over:** minimum browser versions and real-device tests on Android Chrome and iOS Safari (GDD 9, ADR 0003).
 

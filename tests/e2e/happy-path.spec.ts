@@ -38,35 +38,47 @@ async function productionState(page: Page) {
 }
 
 test('1. onboarding tour: shows step 1 on a new save, advances and skips', async ({ page }) => {
-  // DOM is fine (see prior probes); Playwright locator actionability stalls on
-  // this page, so drive the tour with direct evaluate calls only.
-  await page.waitForTimeout(1_500);
-  for (let i = 0; i < 20; i++) {
-    const present = await page.evaluate(() => document.querySelector('.onboarding') !== null);
-    if (present) break;
-    await page.waitForTimeout(300);
-  }
-  const text = await page.evaluate(
-    () => document.querySelector('.onboarding')?.textContent ?? '',
-  );
-  expect(text).toContain('Bước');
-  expect(text).toContain('Hướng dẫn nhanh');
+  // Real clicks throughout: the tour must never intercept the game's own controls.
+  const tour = page.locator('.onboarding');
+  await expect(tour).toBeVisible();
+  await expect(tour).toContainText('Hướng dẫn nhanh');
+  await expect(tour).toContainText('Bước 1/4');
 
-  await page.evaluate(() => {
-    const button = document.querySelector('.onboarding')?.querySelector('button');
-    if (button instanceof HTMLButtonElement) {
-      button.click();
-    }
-  });
-  await page.waitForTimeout(800);
-  const afterSkip = await page.evaluate(() => document.querySelector('.onboarding') !== null);
-  expect(afterSkip).toBe(false);
+  await tour.getByRole('button', { name: 'Bỏ qua hướng dẫn' }).click();
+  await expect(tour).toBeHidden();
 
   // Completion is saved: reload keeps the tour absent.
   await page.reload();
-  await page.waitForTimeout(2_500);
-  const afterReload = await page.evaluate(() => document.querySelector('.onboarding') !== null);
-  expect(afterReload).toBe(false);
+  await expect(page.getByText(/Thu nhập ròng/)).toBeVisible({ timeout: 15_000 });
+  await expect(tour).toBeHidden();
+});
+
+test('1b. onboarding card sits above the bottom sheet, so panel actions stay clickable', async ({
+  page,
+}) => {
+  const tour = page.locator('.onboarding');
+  await expect(tour).toBeVisible();
+  // StrictMode double-mounts the game in dev: exactly one canvas must survive.
+  await expect(page.locator('canvas')).toHaveCount(1);
+  const tourBox = await tour.boundingBox();
+  const viewport = page.viewportSize();
+  if (tourBox === null || viewport === null) throw new Error('layout missing');
+  // The card must stay in the top half so the bottom sheet is never covered.
+  expect(tourBox.y + tourBox.height).toBeLessThan(viewport.height / 2);
+});
+
+test('1c. locked upgrade explains why it is disabled', async ({ page }) => {
+  await page.getByRole('button', { name: 'Bỏ qua hướng dẫn' }).click();
+  const canvas = page.locator('canvas');
+  const box = await canvas.boundingBox();
+  if (box === null) throw new Error('canvas missing');
+  // Room 1 at boot is occupied but still on Level 1; Level 2 needs Mission 1.
+  await page.mouse.click(box.x + box.width / 2 - 24, box.y + box.height / 2 + 36);
+  const panel = page.locator('.room-panel');
+  await expect(panel).toBeVisible();
+  const upgrade = panel.getByRole('button', { name: /Nâng lên Cấp 2/ });
+  await expect(upgrade).toBeDisabled();
+  await expect(panel.locator('.panel-hint')).toHaveText('Cần hoàn thành cột mốc để mở Cấp 2');
 });
 
 test('2. fresh game boots into the GDD starting state', async ({ page }) => {
@@ -104,66 +116,26 @@ test('2-4. accept candidate, upgrade room, build room 3, missions progress', asy
   await page.mouse.click(cx - 24, cy + 36);
   await expect(page.locator('.room-panel h2')).toBeVisible();
 
-  // Upgrade button lives in the panel; Playwright locator actionability has
-  // stalls on this SPA (see test-1 note), so click via evaluate.
-  await page.evaluate(() => {
-    const button = [...document.querySelectorAll('.room-panel button')].find(
-      (candidate) => candidate.textContent?.includes('Nâng lên Cấp 2'),
-    );
-    if (button instanceof HTMLButtonElement) {
-      button.click();
-    }
-  });
-  await page.waitForFunction(
-    () => document.querySelector('.room-panel h2')?.textContent?.includes('Cấp 2') === true,
-    undefined,
-    { timeout: 15_000 },
-  );
+  // Real click on the upgrade button in the panel (it is enabled: Cash covers
+  // the 650 Level 2 cost and Mission 1 unlocked Level 2).
+  const panel = page.locator('.room-panel');
+  await panel.getByRole('button', { name: /Nâng lên Cấp 2/ }).click();
+  await expect(panel.locator('h2')).toContainText('Cấp 2');
 
-  // Build room 3: capacity 4, need 900 Cash; grant via the dev hook to keep
-  // the E2E focused on UI wiring, not on a long idle wait. The build strip
-  // lives in the Tenant panel, so close Room Detail first (scope to the room
-  // panel: the offline toast has its own Close button), then wait for the
-  // tenant panel to replace it.
-  await page.waitForTimeout(600);
-  await page.evaluate(() => {
-    const button = [...document.querySelectorAll('.room-panel button')].find(
-      (candidate) => candidate.textContent?.includes('Đóng'),
-    );
-    if (button instanceof HTMLButtonElement) {
-      button.click();
-    }
-  });
-  await page.waitForFunction(() => document.querySelector('.tenant-panel') !== null, undefined, {
-    timeout: 15_000,
-  });
+  // Build room 3: capacity 4, need 900 Cash. Close Room Detail with a real
+  // click; the tenant panel (which holds the build strip) then takes over.
+  await panel.getByRole('button', { name: 'Đóng' }).click();
+  await expect(page.locator('.tenant-panel')).toBeVisible();
+
+  // Top up Cash with the DEV hook (the earn time is not what this test checks).
   await page.evaluate(() => {
     const hooks = (window as unknown as { __bht?: { grantCash: (n: number) => void } }).__bht;
     hooks?.grantCash(900);
   });
-  await page.waitForFunction(
-    () =>
-      [...document.querySelectorAll('.build-strip button')].some(
-        (candidate) =>
-          candidate.textContent?.includes('Xây phòng 3') &&
-          !candidate.hasAttribute('disabled'),
-      ),
-    undefined,
-    { timeout: 15_000 },
-  );
-  await page.evaluate(() => {
-    const button = [...document.querySelectorAll('.build-strip button')].find(
-      (candidate) => candidate.textContent?.includes('Xây phòng 3'),
-    );
-    if (button instanceof HTMLButtonElement) {
-      button.click();
-    }
-  });
-  await page.waitForFunction(
-    () => document.body.innerText.includes('Nhiệm vụ 4'),
-    undefined,
-    { timeout: 15_000 },
-  );
+  const buildRoom3 = page.locator('.build-strip').getByRole('button', { name: /Xây phòng 3/ });
+  await expect(buildRoom3).toBeEnabled();
+  await buildRoom3.click();
+  await expect(page.getByText('Nhiệm vụ 4')).toBeVisible({ timeout: 15_000 });
 });
 
 test('5-6. forced event triggers the dialog and resolves deterministically', async ({ page }) => {

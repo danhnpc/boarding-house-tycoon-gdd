@@ -1,7 +1,8 @@
 # Pacing simulation report
 
 - Seed: 202611
-- Horizon: 30 game days (greedy agent, domain rules only)
+- Horizon: 30 simulated days (720 h), greedy agent, domain rules only
+- Units: milestone times in simulated hours since start (h); cash in Cash
 - Capacity 4 milestone: 0 h
 - First Level 2 room: 0 h
 - Room 3 built: 5 h
